@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,6 +10,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
+import QRCode from 'react-native-qrcode-svg';
+import { useTranslation } from 'react-i18next';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'FacilityDetail'>;
@@ -29,12 +31,14 @@ const priorityColors = {
 };
 
 export function FacilityDetailScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const { facilityId } = route.params;
 
   const [facility, setFacility] = useState<Facility | null>(null);
   const [loadingFacility, setLoadingFacility] = useState(true);
+  const [voucher, setVoucher] = useState('');
 
   const { issues, loading, fetchIssues } = useIssues(facilityId);
 
@@ -114,10 +118,17 @@ export function FacilityDetailScreen() {
             <Text style={styles.address}>{facility.address}</Text>
           </View>
         )}
+        <View style={styles.subscriptionRow}>
+          <Text style={styles.subscriptionLabel}>Předplatné:</Text>
+          <Text style={styles.subscriptionValue}>
+            {(facility as any)?.subscription_status ?? 'pending'}
+            {(facility as any)?.paid_until ? ` • do ${new Date((facility as any).paid_until).toLocaleDateString()}` : ''}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.issuesHeader}>
-        <Text style={styles.issuesTitle}>Issues</Text>
+        <Text style={styles.issuesTitle}>{t('issues.createTitle')}</Text>
         <Text style={styles.issuesCount}>{issues.length}</Text>
       </View>
 
@@ -151,17 +162,77 @@ export function FacilityDetailScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>No issues yet</Text>
-            <Text style={styles.emptyText}>
-              Create your first issue to start tracking
-            </Text>
+            <Text style={styles.emptyTitle}>{t('issues.noIssues')}</Text>
+            <Text style={styles.emptyText}>{t('issues.noIssuesHint')}</Text>
           </View>
         }
       />
 
+      <View style={styles.paymentCard}>
+        <Text style={styles.payTitle}>Symbolický poplatek 20 Kč/rok</Text>
+        <Text style={styles.payDesc}>
+          Poplatek je nevratný a zajišťuje bezpečné používání služby.
+        </Text>
+        <View style={styles.qrContainer}>
+          <QRCode
+            value={JSON.stringify({
+              facilityId,
+              amountCZK: 20,
+              message:
+                'Symbolický, nevratný poplatek 20 Kč/rok, zajišťuje bezpečné používání služby.',
+            })}
+            size={140}
+          />
+        </View>
+        <View style={styles.voucherRow}>
+          <TextInput
+            style={styles.voucherInput}
+            value={voucher}
+            onChangeText={setVoucher}
+            placeholder="Voucher kód"
+            autoCapitalize="characters"
+          />
+          <Button
+            title="Uplatnit"
+            onPress={async () => {
+              try {
+                if (!voucher.trim()) return;
+                const { data: v, error: verr } = await supabase
+                  .from('vouchers')
+                  .select('months, active, expires_at')
+                  .eq('code', voucher.trim())
+                  .single();
+                if (verr || !v) throw new Error('Neplatný voucher');
+                if (v.active === false) throw new Error('Voucher je neaktivní');
+                if (v.expires_at && new Date(v.expires_at) < new Date()) throw new Error('Voucher vypršel');
+
+                const current = (facility as any)?.paid_until
+                  ? new Date((facility as any).paid_until)
+                  : new Date();
+                const newPaid = new Date(current);
+                newPaid.setMonth(newPaid.getMonth() + (v.months ?? 12));
+
+                const { data: upd, error: uerr } = await supabase
+                  .from('facilities')
+                  .update({ subscription_status: 'active', paid_until: newPaid.toISOString() })
+                  .eq('id', facilityId)
+                  .select()
+                  .single();
+                if (uerr) throw uerr;
+                setFacility(upd as any);
+                setVoucher('');
+                Alert.alert('Hotovo', 'Předplatné bylo aktivováno.');
+              } catch (e: any) {
+                Alert.alert('Chyba', e.message ?? 'Voucher se nepodařilo uplatnit.');
+              }
+            }}
+          />
+        </View>
+      </View>
+
       <View style={styles.footer}>
         <Button
-          title="Create Issue"
+          title={t('issues.createIssue')}
           onPress={handleCreateIssue}
         />
       </View>
@@ -229,6 +300,43 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
     color: colors.textSecondary,
   },
+  paymentCard: {
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  payTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: 4,
+  },
+  payDesc: {
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  qrContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  voucherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  voucherInput: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
   listContent: {
     paddingHorizontal: spacing.xl,
     paddingBottom: 100,
@@ -294,5 +402,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  subscriptionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  subscriptionLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSize.sm,
+  },
+  subscriptionValue: {
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
   },
 });

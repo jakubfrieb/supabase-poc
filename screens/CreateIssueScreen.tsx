@@ -9,6 +9,7 @@ import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
 import { IssueStatus, IssuePriority } from '../types/database';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
+import { useTranslation } from 'react-i18next';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'CreateIssue'>;
@@ -17,6 +18,7 @@ const STATUSES: IssueStatus[] = ['open', 'in_progress', 'resolved', 'closed'];
 const PRIORITIES: IssuePriority[] = ['low', 'medium', 'high', 'urgent'];
 
 export function CreateIssueScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const { facilityId } = route.params;
@@ -63,24 +65,22 @@ export function CreateIssueScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Create Issue</Text>
-            <Text style={styles.subtitle}>
-              Report a new issue for this facility
-            </Text>
+            <Text style={styles.title}>{t('issues.createTitle')}</Text>
+            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
           </View>
 
           <View style={styles.form}>
             <Input
-              label="Issue Title *"
-              placeholder="e.g., Broken AC in Conference Room"
+              label={`${t('issues.title')} *`}
+              placeholder={t('issues.title')}
               value={title}
               onChangeText={setTitle}
               autoCapitalize="sentences"
             />
 
             <Input
-              label="Description"
-              placeholder="Provide detailed information about the issue"
+              label={t('issues.description')}
+              placeholder={t('issues.description')}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -89,7 +89,7 @@ export function CreateIssueScreen() {
             />
 
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Priority</Text>
+              <Text style={styles.sectionLabel}>{t('issues.priority')}</Text>
               <View style={styles.optionGroup}>
                 {PRIORITIES.map((p) => (
                   <TouchableOpacity
@@ -114,7 +114,7 @@ export function CreateIssueScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Status</Text>
+              <Text style={styles.sectionLabel}>{t('issues.status')}</Text>
               <View style={styles.optionGroup}>
                 {STATUSES.map((s) => (
                   <TouchableOpacity
@@ -142,13 +142,13 @@ export function CreateIssueScreen() {
 
         <View style={styles.footer}>
           <Button
-            title="Cancel"
+            title={t('common.cancel')}
             onPress={() => navigation.goBack()}
             variant="outline"
             style={styles.cancelButton}
           />
           <Button
-            title="Create Issue"
+            title={t('issues.createIssue')}
             onPress={handleSubmit}
             loading={loading}
             style={styles.submitButton}

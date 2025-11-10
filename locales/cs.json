@@ -1,0 +1,63 @@
+{
+  "appName": "Správce Nemovitostí",
+  "common": {
+    "cancel": "Zrušit",
+    "delete": "Smazat",
+    "create": "Vytvořit",
+    "save": "Uložit",
+    "ok": "OK",
+    "or": "NEBO"
+  },
+  "auth": {
+    "loginTitle": "Přihlášení",
+    "email": "E‑mail",
+    "password": "Heslo",
+    "signIn": "Přihlásit se",
+    "forgotPassword": "Zapomenuté heslo?",
+    "continueWithGoogle": "Pokračovat přes Google",
+    "noAccount": "Nemáte účet?",
+    "signUp": "Zaregistrovat se",
+    "registerTitle": "Vytvořit účet",
+    "confirmPassword": "Potvrzení hesla",
+    "createAccount": "Vytvořit účet",
+    "loginSubtitle": "Spravujte vaše nemovitosti a hlášené závady"
+  },
+  "facilities": {
+    "greeting": "Ahoj, {{name}}",
+    "yourFacilities": "Vaše nemovitosti",
+    "noFacilities": "Zatím žádné nemovitosti",
+    "noFacilitiesHint": "Vytvořte první nemovitost pro sledování závad",
+    "createFacility": "Vytvořit nemovitost"
+  },
+  "facility": {
+    "createTitle": "Vytvořit nemovitost",
+    "name": "Název nemovitosti",
+    "description": "Popis",
+    "address": "Adresa",
+    "newFacility": "Nová nemovitost"
+  },
+  "issues": {
+    "createTitle": "Vytvořit závadu",
+    "title": "Název závady",
+    "description": "Popis",
+    "priority": "Priorita",
+    "status": "Stav",
+    "createIssue": "Vytvořit závadu",
+    "cancel": "Zrušit",
+    "noIssues": "Zatím žádné závady",
+    "noIssuesHint": "Vytvořte první závadu pro zahájení sledování"
+  },
+  "profile": {
+    "title": "Profil",
+    "myFacilities": "Moje nemovitosti",
+    "subscription": "Předplatné",
+    "status": "Stav",
+    "paidUntil": "Zaplaceno do",
+    "statuses": {
+      "pending": "Čeká",
+      "paused": "Pozastaveno",
+      "active": "Zaplaceno"
+    }
+  }
+}
+

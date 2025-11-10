@@ -3,6 +3,8 @@ export type RootStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   Facilities: undefined;
+  Profile: undefined;
+  JoinFacility: undefined;
   CreateFacility: undefined;
   EditFacility: { facilityId: string };
   FacilityDetail: { facilityId: string };

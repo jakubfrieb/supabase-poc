@@ -66,7 +66,7 @@ EXPO_PUBLIC_SUPABASE_URL=your-supabase-project-url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
-### 5. Set up the database
+### 5. Set up the database (base)
 
 1. Go to your Supabase project dashboard
 2. Navigate to SQL Editor
@@ -80,14 +80,20 @@ This will create:
 - Indexes for performance
 - Automatic timestamp triggers
 
-### 6. Configure Google OAuth
+### 6. Apply database migrations (incremental)
+
+1. Open files in `supabase/migrations/` in ascending filename order
+2. Run each script in the SQL Editor
+3. Migrations are idempotent (safe to re-run)
+
+### 7. Configure Google OAuth
 
 Follow the detailed instructions in `SETUP_GUIDE.md` to:
 1. Create a Google Cloud Console project
 2. Set up OAuth credentials
 3. Configure Supabase Auth with Google provider
 
-### 7. Run the app
+### 8. Run the app
 
 ```bash
 # Start the development server

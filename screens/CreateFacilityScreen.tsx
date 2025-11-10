@@ -8,10 +8,12 @@ import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
+import { useTranslation } from 'react-i18next';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function CreateFacilityScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const { createFacility } = useFacilities();
 
@@ -53,24 +55,22 @@ export function CreateFacilityScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Create Facility</Text>
-            <Text style={styles.subtitle}>
-              Add a new facility to manage and track issues
-            </Text>
+            <Text style={styles.title}>{t('facility.createTitle')}</Text>
+            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
           </View>
 
           <View style={styles.form}>
             <Input
-              label="Facility Name *"
-              placeholder="e.g., Main Office Building"
+              label={`${t('facility.name')} *`}
+              placeholder={t('facility.name')}
               value={name}
               onChangeText={setName}
               autoCapitalize="words"
             />
 
             <Input
-              label="Description"
-              placeholder="Brief description of the facility"
+              label={t('facility.description')}
+              placeholder={t('facility.description')}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -79,8 +79,8 @@ export function CreateFacilityScreen() {
             />
 
             <Input
-              label="Address"
-              placeholder="Full address of the facility"
+              label={t('facility.address')}
+              placeholder={t('facility.address')}
               value={address}
               onChangeText={setAddress}
               multiline
@@ -92,13 +92,13 @@ export function CreateFacilityScreen() {
 
         <View style={styles.footer}>
           <Button
-            title="Cancel"
+            title={t('common.cancel')}
             onPress={() => navigation.goBack()}
             variant="outline"
             style={styles.cancelButton}
           />
           <Button
-            title="Create Facility"
+            title={t('facilities.createFacility')}
             onPress={handleSubmit}
             loading={loading}
             style={styles.submitButton}

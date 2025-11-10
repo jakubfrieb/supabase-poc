@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,6 +10,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
+import * as ImagePicker from 'expo-image-picker';
+import { useIssueMessages } from '../hooks/useIssueMessages';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'IssueDetail'>;
@@ -43,8 +45,11 @@ export function IssueDetailScreen() {
   const [issue, setIssue] = useState<Issue | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [localImage, setLocalImage] = useState<string | null>(null);
 
   const { updateIssue, deleteIssue } = useIssues(facilityId);
+  const { messages, sendMessage } = useIssueMessages(issueId);
 
   useEffect(() => {
     fetchIssue();
@@ -166,6 +171,81 @@ export function IssueDetailScreen() {
             </View>
           </View>
         </Card>
+
+        {/* Messages */}
+        <Card>
+          <Text style={styles.sectionLabel}>Komunikace</Text>
+          {messages.map((m) => (
+            <View key={m.id} style={styles.messageRow}>
+              <View style={styles.messageBubble}>
+                {m.attachment_url ? (
+                  <Image source={{ uri: m.attachment_url }} style={styles.messageImage} />
+                ) : null}
+                {m.content ? <Text style={styles.messageText}>{m.content}</Text> : null}
+                <Text style={styles.messageTime}>
+                  {new Date(m.created_at).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Card>
+
+        {localImage ? (
+          <View style={styles.preview}>
+            <Image source={{ uri: localImage }} style={styles.previewImage} />
+            <TouchableOpacity onPress={() => setLocalImage(null)}>
+              <Text style={styles.removePreview}>Odebrat</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <View style={styles.composer}>
+          <TouchableOpacity
+            style={styles.attachButton}
+            onPress={async () => {
+              const res = await ImagePicker.launchImageLibraryAsync({
+                allowsEditing: false,
+                quality: 0.8,
+              });
+              if (!res.canceled) {
+                setLocalImage(res.assets[0].uri);
+              }
+            }}
+          >
+            <Text style={styles.attachText}>Foto</Text>
+          </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            placeholder="Napište zprávu…"
+            value={messageText}
+            onChangeText={setMessageText}
+          />
+          <Button
+            title="Odeslat"
+            onPress={async () => {
+              let attachmentUrl: string | null = null;
+              try {
+                if (localImage) {
+                  const resp = await fetch(localImage);
+                  const blob = await resp.blob();
+                  const fileExt = localImage.split('.').pop() || 'jpg';
+                  const path = `issues/${issueId}/${Date.now()}.${fileExt}`;
+                  const { error: upErr } = await supabase.storage
+                    .from('issue-attachments')
+                    .upload(path, blob, { cacheControl: '3600', upsert: false, contentType: blob.type || 'image/jpeg' });
+                  if (upErr) throw upErr;
+                  const { data } = supabase.storage.from('issue-attachments').getPublicUrl(path);
+                  attachmentUrl = data.publicUrl;
+                }
+                await sendMessage(messageText.trim() || null, attachmentUrl);
+                setMessageText('');
+                setLocalImage(null);
+              } catch (e: any) {
+                Alert.alert('Chyba', e.message ?? 'Zprávu se nepodařilo odeslat.');
+              }
+            }}
+          />
+        </View>
 
         {availableStatuses.length > 0 && (
           <View style={styles.actionsSection}>
@@ -301,5 +381,70 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  messageRow: {
+    marginBottom: spacing.md,
+  },
+  messageBubble: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  messageText: {
+    color: colors.text,
+    marginBottom: 6,
+  },
+  messageTime: {
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+  },
+  messageImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 8,
+    marginBottom: spacing.sm,
+  },
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  attachButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  attachText: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
+  preview: {
+    marginTop: spacing.sm,
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+  },
+  previewImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
+  },
+  removePreview: {
+    color: colors.error,
+    marginTop: 6,
   },
 });

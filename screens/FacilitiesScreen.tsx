@@ -9,6 +9,7 @@ import { Button } from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
+import { useTranslation } from 'react-i18next';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -16,6 +17,7 @@ export function FacilitiesScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { facilities, loading, fetchFacilities } = useFacilities();
   const { user, signOut } = useAuth();
+  const { t } = useTranslation();
 
   // Refetch when the screen gains focus so newly created facilities appear immediately
   useFocusEffect(
@@ -36,11 +38,11 @@ export function FacilitiesScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hello, {user?.email?.split('@')[0]}</Text>
-          <Text style={styles.title}>Your Facilities</Text>
+          <Text style={styles.greeting}>{t('facilities.greeting', { name: user?.email?.split('@')[0] })}</Text>
+          <Text style={styles.title}>{t('facilities.yourFacilities')}</Text>
         </View>
-        <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)} style={styles.avatar}>
+          <Text style={styles.avatarText}>{user?.email?.charAt(0).toUpperCase()}</Text>
         </TouchableOpacity>
       </View>
 
@@ -74,19 +76,28 @@ export function FacilitiesScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🏢</Text>
-            <Text style={styles.emptyTitle}>No facilities yet</Text>
-            <Text style={styles.emptyText}>
-              Create your first facility to start tracking issues
-            </Text>
+            <Text style={styles.emptyTitle}>{t('facilities.noFacilities')}</Text>
+            <Text style={styles.emptyText}>{t('facilities.noFacilitiesHint')}</Text>
           </View>
         }
       />
 
       <View style={styles.footer}>
-        <Button
-          title="Create Facility"
-          onPress={handleCreateFacility}
-        />
+        <View style={{ flexDirection: 'row', gap: spacing.md }}>
+          <View style={{ flex: 1 }}>
+            <Button
+              title={t('facilities.createFacility')}
+              onPress={handleCreateFacility}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Připojit se"
+              variant="outline"
+              onPress={() => navigation.navigate('JoinFacility' as never)}
+            />
+          </View>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -119,10 +130,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
   },
-  signOutText: {
-    color: colors.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: colors.textOnPrimary,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
   },
   listContent: {
     paddingHorizontal: spacing.xl,

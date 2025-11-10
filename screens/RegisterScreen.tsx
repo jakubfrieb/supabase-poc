@@ -16,6 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { colors, spacing, fontSize, fontWeight } from '../theme/colors';
+import { useTranslation } from 'react-i18next';
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function RegisterScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const { signUpWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -93,14 +95,14 @@ export function RegisterScreen({ navigation }: Props) {
             <View style={styles.iconContainer}>
               <Text style={styles.icon}>🏢</Text>
             </View>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Sign up to manage your facilities</Text>
+            <Text style={styles.title}>{t('auth.registerTitle')}</Text>
+            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
           </View>
 
           <View style={styles.form}>
             <Input
-              label="Email"
-              placeholder="Enter your email"
+              label={t('auth.email')}
+              placeholder={t('auth.email')}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -113,8 +115,8 @@ export function RegisterScreen({ navigation }: Props) {
             />
 
             <Input
-              label="Password"
-              placeholder="Create a password"
+              label={t('auth.password')}
+              placeholder={t('auth.password')}
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -126,8 +128,8 @@ export function RegisterScreen({ navigation }: Props) {
             />
 
             <Input
-              label="Confirm Password"
-              placeholder="Confirm your password"
+              label={t('auth.confirmPassword')}
+              placeholder={t('auth.confirmPassword')}
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
@@ -139,7 +141,7 @@ export function RegisterScreen({ navigation }: Props) {
             />
 
             <Button
-              title="Create Account"
+              title={t('auth.createAccount')}
               onPress={handleRegister}
               loading={loading}
               disabled={loading}

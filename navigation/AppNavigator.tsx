@@ -14,6 +14,8 @@ import { CreateFacilityScreen } from '../screens/CreateFacilityScreen';
 import { FacilityDetailScreen } from '../screens/FacilityDetailScreen';
 import { CreateIssueScreen } from '../screens/CreateIssueScreen';
 import { IssueDetailScreen } from '../screens/IssueDetailScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
+import { JoinFacilityScreen } from '../screens/JoinFacilityScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -68,10 +70,20 @@ export function AppNavigator() {
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="Profile"
+              component={ProfileScreen}
+              options={{ title: 'Profil' }}
+            />
+            <Stack.Screen
+              name="JoinFacility"
+              component={JoinFacilityScreen}
+              options={{ title: 'Připojit se k nemovitosti', presentation: 'modal' }}
+            />
+            <Stack.Screen
               name="CreateFacility"
               component={CreateFacilityScreen}
               options={{
-                title: 'New Facility',
+                title: 'Nová nemovitost',
                 presentation: 'modal',
               }}
             />
@@ -79,14 +91,14 @@ export function AppNavigator() {
               name="FacilityDetail"
               component={FacilityDetailScreen}
               options={{
-                title: 'Facility Details',
+                title: 'Detail nemovitosti',
               }}
             />
             <Stack.Screen
               name="CreateIssue"
               component={CreateIssueScreen}
               options={{
-                title: 'New Issue',
+                title: 'Nová závada',
                 presentation: 'modal',
               }}
             />
@@ -94,7 +106,7 @@ export function AppNavigator() {
               name="IssueDetail"
               component={IssueDetailScreen}
               options={{
-                title: 'Issue Details',
+                title: 'Detail závady',
               }}
             />
           </>

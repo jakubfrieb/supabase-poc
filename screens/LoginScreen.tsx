@@ -17,6 +17,7 @@ import { Input } from '../components/Input';
 import { useAuth } from '../contexts/AuthContext';
 import { GoogleLogo } from '../assets/google-logo';
 import { colors, spacing, fontSize, fontWeight, shadows } from '../theme/colors';
+import { useTranslation } from 'react-i18next';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function LoginScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -91,16 +93,14 @@ export function LoginScreen({ navigation }: Props) {
             <View style={styles.iconContainer}>
               <Text style={styles.icon}>🏢</Text>
             </View>
-            <Text style={styles.title}>Facility Manager</Text>
-            <Text style={styles.subtitle}>
-              Manage your facilities and track issues efficiently
-            </Text>
+            <Text style={styles.title}>{t('appName')}</Text>
+            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
           </View>
 
           <View style={styles.form}>
             <Input
-              label="Email"
-              placeholder="Enter your email"
+              label={t('auth.email')}
+              placeholder={t('auth.email')}
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -113,8 +113,8 @@ export function LoginScreen({ navigation }: Props) {
             />
 
             <Input
-              label="Password"
-              placeholder="Enter your password"
+              label={t('auth.password')}
+              placeholder={t('auth.password')}
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -129,11 +129,11 @@ export function LoginScreen({ navigation }: Props) {
               style={styles.forgotPassword}
               onPress={() => navigation.navigate('ForgotPassword')}
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={styles.forgotPasswordText}>{t('auth.forgotPassword')}</Text>
             </TouchableOpacity>
 
             <Button
-              title="Sign In"
+              title={t('auth.signIn')}
               onPress={handleEmailSignIn}
               loading={loading}
               disabled={loading || googleLoading}
@@ -142,12 +142,12 @@ export function LoginScreen({ navigation }: Props) {
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
+              <Text style={styles.dividerText}>{t('common.or')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
             <Button
-              title="Continue with Google"
+              title={t('auth.continueWithGoogle')}
               onPress={handleGoogleSignIn}
               loading={googleLoading}
               disabled={loading || googleLoading}
@@ -157,9 +157,9 @@ export function LoginScreen({ navigation }: Props) {
             />
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>{t('auth.noAccount')} </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.link}>Sign Up</Text>
+                <Text style={styles.link}>{t('auth.signUp')}</Text>
               </TouchableOpacity>
             </View>
           </View>
