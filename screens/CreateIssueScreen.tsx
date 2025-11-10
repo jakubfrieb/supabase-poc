@@ -8,6 +8,7 @@ import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
 import { IssueStatus, IssuePriority } from '../types/database';
+import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'CreateIssue'>;
@@ -161,69 +162,69 @@ export function CreateIssueScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: spacing.xl,
     paddingBottom: 120,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   form: {
-    gap: 4,
+    gap: spacing.xs,
   },
   textArea: {
     height: 120,
     textAlignVertical: 'top',
   },
   section: {
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
   sectionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1C1C1E',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
     marginBottom: 10,
   },
   optionGroup: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   optionButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: '#E5E5EA',
+    borderColor: colors.border,
   },
   optionButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   optionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
   },
   optionTextActive: {
-    color: '#FFFFFF',
+    color: colors.textOnPrimary,
   },
   footer: {
     position: 'absolute',
@@ -231,11 +232,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    gap: 12,
-    padding: 24,
-    backgroundColor: '#F8F9FA',
+    gap: spacing.md,
+    padding: spacing.xl,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: colors.border,
   },
   cancelButton: {
     flex: 1,

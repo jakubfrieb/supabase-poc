@@ -9,22 +9,23 @@ import { Facility } from '../types/database';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
+import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'FacilityDetail'>;
 
 const statusColors = {
-  open: '#FF9500',
-  in_progress: '#007AFF',
-  resolved: '#34C759',
-  closed: '#8E8E93',
+  open: colors.statusOpen,
+  in_progress: colors.statusInProgress,
+  resolved: colors.statusResolved,
+  closed: colors.statusClosed,
 };
 
 const priorityColors = {
-  low: '#34C759',
-  medium: '#FF9500',
-  high: '#FF3B30',
-  urgent: '#AF52DE',
+  low: colors.priorityLow,
+  medium: colors.priorityMedium,
+  high: colors.priorityHigh,
+  urgent: colors.priorityUrgent,
 };
 
 export function FacilityDetailScreen() {
@@ -164,7 +165,7 @@ export function FacilityDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -172,87 +173,87 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   facilityInfo: {
-    padding: 24,
-    backgroundColor: '#FFFFFF',
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: colors.border,
   },
   facilityName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontSize: fontSize.xxl,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   facilityDescription: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   addressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   addressIcon: {
-    fontSize: 14,
+    fontSize: fontSize.sm,
     marginRight: 6,
   },
   address: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: colors.textSecondary,
     flex: 1,
   },
   issuesHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
     paddingTop: 20,
-    paddingBottom: 12,
+    paddingBottom: spacing.md,
   },
   issuesTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1C1C1E',
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
   },
   issuesCount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
   },
   listContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
     paddingBottom: 100,
   },
   issueHeader: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   issueTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   issueDescription: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     lineHeight: 20,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   badges: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: fontWeight.semibold,
+    color: colors.textOnPrimary,
     textTransform: 'uppercase',
   },
   emptyContainer: {
@@ -263,17 +264,17 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     fontSize: 64,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -282,9 +283,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 24,
-    backgroundColor: '#F8F9FA',
+    padding: spacing.xl,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: colors.border,
   },
 });

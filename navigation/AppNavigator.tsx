@@ -3,9 +3,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from './types';
+import { colors } from '../theme/colors';
 
 // Screens
 import { LoginScreen } from '../screens/LoginScreen';
+import { RegisterScreen } from '../screens/RegisterScreen';
+import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { FacilitiesScreen } from '../screens/FacilitiesScreen';
 import { CreateFacilityScreen } from '../screens/CreateFacilityScreen';
 import { FacilityDetailScreen } from '../screens/FacilityDetailScreen';
@@ -26,9 +29,9 @@ export function AppNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#FFFFFF',
+            backgroundColor: colors.surface,
           },
-          headerTintColor: '#007AFF',
+          headerTintColor: colors.primary,
           headerTitleStyle: {
             fontWeight: '600',
           },
@@ -36,11 +39,27 @@ export function AppNavigator() {
         }}
       >
         {!user ? (
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Register"
+              component={RegisterScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{
+                headerShown: true,
+                title: 'Reset Password',
+                presentation: 'modal',
+              }}
+            />
+          </>
         ) : (
           <>
             <Stack.Screen

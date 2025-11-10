@@ -1,5 +1,6 @@
 import React from 'react';
 import { TextInput, View, Text, StyleSheet, TextInputProps } from 'react-native';
+import { colors, spacing, borderRadius, fontSize, fontWeight } from '../theme/colors';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -7,16 +8,21 @@ interface InputProps extends TextInputProps {
 }
 
 export function Input({ label, error, style, ...props }: InputProps) {
+  const [isFocused, setIsFocused] = React.useState(false);
+
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
       <TextInput
         style={[
           styles.input,
+          isFocused && styles.inputFocused,
           error && styles.inputError,
           style,
         ]}
-        placeholderTextColor="#8E8E93"
+        placeholderTextColor={colors.placeholder}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         {...props}
       />
       {error && <Text style={styles.error}>{error}</Text>}
@@ -26,30 +32,34 @@ export function Input({ label, error, style, ...props }: InputProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 6,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   input: {
-    backgroundColor: '#F2F2F7',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    backgroundColor: colors.backgroundDark,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#1C1C1E',
-    borderWidth: 1,
+    fontSize: fontSize.md,
+    color: colors.text,
+    borderWidth: 2,
     borderColor: 'transparent',
   },
+  inputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
   inputError: {
-    borderColor: '#FF3B30',
+    borderColor: colors.error,
   },
   error: {
-    color: '#FF3B30',
-    fontSize: 12,
-    marginTop: 4,
+    color: colors.error,
+    fontSize: fontSize.xs,
+    marginTop: spacing.xs,
   },
 });

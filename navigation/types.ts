@@ -1,5 +1,7 @@
 export type RootStackParamList = {
   Login: undefined;
+  Register: undefined;
+  ForgotPassword: undefined;
   Facilities: undefined;
   CreateFacility: undefined;
   EditFacility: { facilityId: string };
