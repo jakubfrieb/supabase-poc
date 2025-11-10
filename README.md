@@ -1,4 +1,4 @@
-# Facility Manager Mobile App
+<!-- # Facility Manager Mobile App -->
 
 A modern mobile application built with React Native and Expo that allows users to manage facilities and track issues. Features Google OAuth authentication, real-time updates, and a clean, mobile-first design.
 
@@ -214,6 +214,33 @@ See [Expo EAS documentation](https://docs.expo.dev/build/introduction/) for deta
 1. Verify your Supabase URL and anon key in `.env`
 2. Check that the database schema has been properly set up
 3. Ensure RLS policies are enabled and correct
+
+### Mobile device connection issues
+
+**Problem**: "Failed to download remote update" or "java.io.exception" on Android/iOS
+
+This happens when your mobile device can't reach the development server. Try these solutions:
+
+1. **Use Tunnel Mode** (Recommended):
+   ```bash
+   npm run start:tunnel
+   ```
+   This creates a tunnel through Expo's servers, allowing your device to connect even on different networks.
+
+2. **Ensure Same Network**:
+   - Make sure your computer and mobile device are on the same Wi-Fi network
+   - Check that your firewall isn't blocking port 8081
+   - Try using LAN mode: `expo start --lan`
+
+3. **Manual IP Configuration**:
+   - Find your computer's local IP address (e.g., `192.168.1.100`)
+   - In Expo Go, manually enter: `exp://YOUR_IP:8081`
+   - Or use the connection menu in Expo Go to switch connection type
+
+4. **Check Firewall Settings**:
+   - Allow Expo/Metro bundler through your firewall
+   - On Linux: `sudo ufw allow 8081/tcp`
+   - On macOS/Windows: Add exception in firewall settings
 
 ### Build errors
 

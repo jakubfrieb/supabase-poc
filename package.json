@@ -4,6 +4,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
+    "start:tunnel": "expo start --tunnel",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "expo-build-properties": "^1.0.9",
     "typescript": "~5.9.2"
   },
   "private": true
