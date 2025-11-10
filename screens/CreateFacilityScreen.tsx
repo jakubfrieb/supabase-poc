@@ -7,6 +7,7 @@ import { useFacilities } from '../hooks/useFacilities';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
+import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -111,31 +112,31 @@ export function CreateFacilityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: spacing.xl,
     paddingBottom: 120,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   form: {
-    gap: 4,
+    gap: spacing.xs,
   },
   textArea: {
     height: 100,
@@ -147,11 +148,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    gap: 12,
-    padding: 24,
-    backgroundColor: '#F8F9FA',
+    gap: spacing.md,
+    padding: spacing.xl,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: colors.border,
   },
   cancelButton: {
     flex: 1,

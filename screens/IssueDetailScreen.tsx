@@ -9,22 +9,23 @@ import { Issue, IssueStatus } from '../types/database';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
+import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'IssueDetail'>;
 
 const statusColors = {
-  open: '#FF9500',
-  in_progress: '#007AFF',
-  resolved: '#34C759',
-  closed: '#8E8E93',
+  open: colors.statusOpen,
+  in_progress: colors.statusInProgress,
+  resolved: colors.statusResolved,
+  closed: colors.statusClosed,
 };
 
 const priorityColors = {
-  low: '#34C759',
-  medium: '#FF9500',
-  high: '#FF3B30',
-  urgent: '#AF52DE',
+  low: colors.priorityLow,
+  medium: colors.priorityMedium,
+  high: colors.priorityHigh,
+  urgent: colors.priorityUrgent,
 };
 
 const statusTransitions: Record<IssueStatus, IssueStatus[]> = {
@@ -205,7 +206,7 @@ export function IssueDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -213,44 +214,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scrollContent: {
-    padding: 24,
+    padding: spacing.xl,
   },
   header: {
     marginBottom: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 12,
+    fontSize: fontSize.xxl,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.md,
     lineHeight: 32,
   },
   badges: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
   },
   badge: {
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: 14,
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    color: colors.textOnPrimary,
     textTransform: 'uppercase',
   },
   section: {
     marginTop: 20,
     paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: colors.border,
   },
   sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   description: {
     fontSize: 15,
@@ -260,45 +261,45 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   detailLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
   detailValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1C1C1E',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.text,
   },
   actionsSection: {
-    marginTop: 24,
+    marginTop: spacing.xl,
   },
   actionsLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 12,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.md,
   },
   statusButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
   statusButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
   },
   statusButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.textOnPrimary,
   },
   dangerZone: {
     marginTop: 40,
-    paddingTop: 24,
+    paddingTop: spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: colors.border,
   },
 });

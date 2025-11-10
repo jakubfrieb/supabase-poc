@@ -8,6 +8,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../navigation/types';
+import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -87,63 +88,63 @@ export function FacilitiesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
     paddingBottom: 20,
   },
   greeting: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 4,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#1C1C1E',
+    fontWeight: fontWeight.bold,
+    color: colors.text,
   },
   signOutButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   signOutText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '600',
+    color: colors.primary,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
   },
   listContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
     paddingBottom: 100,
   },
   facilityName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1C1C1E',
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
     marginBottom: 6,
   },
   facilityDescription: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   addressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   addressIcon: {
-    fontSize: 14,
+    fontSize: fontSize.sm,
     marginRight: 6,
   },
   address: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: colors.textSecondary,
     flex: 1,
   },
   emptyContainer: {
@@ -154,17 +155,17 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     fontSize: 64,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -173,9 +174,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 24,
-    backgroundColor: '#F8F9FA',
+    padding: spacing.xl,
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: colors.border,
   },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle, View } from 'react-native';
+import { colors, spacing, borderRadius, fontSize, fontWeight } from '../theme/colors';
 
 interface ButtonProps {
   title: string;
@@ -8,6 +9,7 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
+  icon?: React.ReactNode;
 }
 
 export function Button({
@@ -16,7 +18,8 @@ export function Button({
   variant = 'primary',
   loading = false,
   disabled = false,
-  style
+  style,
+  icon
 }: ButtonProps) {
   return (
     <TouchableOpacity
@@ -31,11 +34,14 @@ export function Button({
       activeOpacity={0.7}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? '#007AFF' : '#FFFFFF'} />
+        <ActivityIndicator color={variant === 'outline' ? colors.primary : colors.textOnPrimary} />
       ) : (
-        <Text style={[styles.text, styles[`${variant}Text` as keyof typeof styles] as TextStyle]}>
-          {title}
-        </Text>
+        <View style={styles.content}>
+          {icon && <View style={styles.iconContainer}>{icon}</View>}
+          <Text style={[styles.text, styles[`${variant}Text` as keyof typeof styles] as TextStyle]}>
+            {title}
+          </Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -45,42 +51,50 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
   },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainer: {
+    marginRight: spacing.sm,
+  },
   primary: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.buttonPrimary,
   },
   secondary: {
-    backgroundColor: '#5856D6',
+    backgroundColor: colors.buttonSecondary,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: '#007AFF',
+    borderColor: colors.buttonOutline,
   },
   danger: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.buttonDanger,
   },
   disabled: {
     opacity: 0.5,
   },
   text: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
   },
   primaryText: {
-    color: '#FFFFFF',
+    color: colors.textOnPrimary,
   },
   secondaryText: {
-    color: '#FFFFFF',
+    color: colors.textOnPrimary,
   },
   outlineText: {
-    color: '#007AFF',
+    color: colors.buttonOutline,
   },
   dangerText: {
-    color: '#FFFFFF',
+    color: colors.textOnPrimary,
   },
 });

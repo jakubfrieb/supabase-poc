@@ -3,76 +3,79 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
+  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { useAuth } from '../contexts/AuthContext';
-import { GoogleLogo } from '../assets/google-logo';
-import { colors, spacing, fontSize, fontWeight, shadows } from '../theme/colors';
+import { colors, spacing, fontSize, fontWeight } from '../theme/colors';
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
+type RegisterScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Register'>;
 
 interface Props {
-  navigation: LoginScreenNavigationProp;
+  navigation: RegisterScreenNavigationProp;
 }
 
-export function LoginScreen({ navigation }: Props) {
+export function RegisterScreen({ navigation }: Props) {
+  const { signUpWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-
-  const { signInWithGoogle, signInWithEmail } = useAuth();
+  const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
 
   const validateForm = () => {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: { email?: string; password?: string; confirmPassword?: string } = {};
 
+    // Email validation
     if (!email) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       newErrors.email = 'Email is invalid';
     }
 
+    // Password validation
     if (!password) {
       newErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    // Confirm password validation
+    if (!confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleEmailSignIn = async () => {
+  const handleRegister = async () => {
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
     try {
-      await signInWithEmail(email, password);
+      await signUpWithEmail(email, password);
+      Alert.alert(
+        'Success!',
+        'Registration successful! Please check your email to verify your account.',
+        [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+      );
     } catch (error: any) {
-      Alert.alert('Sign In Failed', error.message || 'Invalid email or password');
+      Alert.alert('Registration Failed', error.message || 'An error occurred during registration');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      setGoogleLoading(true);
-      await signInWithGoogle();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to sign in with Google. Please try again.');
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -85,16 +88,13 @@ export function LoginScreen({ navigation }: Props) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
             <View style={styles.iconContainer}>
               <Text style={styles.icon}>🏢</Text>
             </View>
-            <Text style={styles.title}>Facility Manager</Text>
-            <Text style={styles.subtitle}>
-              Manage your facilities and track issues efficiently
-            </Text>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Sign up to manage your facilities</Text>
           </View>
 
           <View style={styles.form}>
@@ -114,7 +114,7 @@ export function LoginScreen({ navigation }: Props) {
 
             <Input
               label="Password"
-              placeholder="Enter your password"
+              placeholder="Create a password"
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
@@ -125,41 +125,31 @@ export function LoginScreen({ navigation }: Props) {
               autoCapitalize="none"
             />
 
-            <TouchableOpacity
-              style={styles.forgotPassword}
-              onPress={() => navigation.navigate('ForgotPassword')}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            <Button
-              title="Sign In"
-              onPress={handleEmailSignIn}
-              loading={loading}
-              disabled={loading || googleLoading}
-              style={styles.signInButton}
+            <Input
+              label="Confirm Password"
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                setErrors({ ...errors, confirmPassword: undefined });
+              }}
+              error={errors.confirmPassword}
+              secureTextEntry
+              autoCapitalize="none"
             />
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
             <Button
-              title="Continue with Google"
-              onPress={handleGoogleSignIn}
-              loading={googleLoading}
-              disabled={loading || googleLoading}
-              variant="outline"
-              style={styles.googleButton}
-              icon={<GoogleLogo width={20} height={20} />}
+              title="Create Account"
+              onPress={handleRegister}
+              loading={loading}
+              disabled={loading}
+              style={styles.registerButton}
             />
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.link}>Sign Up</Text>
+              <Text style={styles.footerText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                <Text style={styles.link}>Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -188,72 +178,39 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxxl,
   },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.xl,
-    ...shadows.lg,
+    marginBottom: spacing.lg,
   },
   icon: {
-    fontSize: 50,
+    fontSize: 40,
   },
   title: {
     fontSize: fontSize.xxxl,
     fontWeight: fontWeight.bold,
     color: colors.text,
     marginBottom: spacing.sm,
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: spacing.lg,
   },
   form: {
     width: '100%',
   },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: spacing.lg,
-  },
-  forgotPasswordText: {
-    color: colors.primary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-  },
-  signInButton: {
-    marginBottom: spacing.xl,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.xl,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: spacing.lg,
-    color: colors.textSecondary,
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-  },
-  googleButton: {
-    backgroundColor: colors.surface,
+  registerButton: {
+    marginTop: spacing.md,
     marginBottom: spacing.xl,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.md,
   },
   footerText: {
     fontSize: fontSize.md,
