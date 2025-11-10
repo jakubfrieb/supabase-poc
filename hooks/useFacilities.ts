@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Facility } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,7 +15,17 @@ export function useFacilities() {
     }
   }, [user]);
 
-  const fetchFacilities = async () => {
+  // Refetch when auth state changes (e.g., session token becomes available after OAuth)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        fetchFacilities();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchFacilities = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -31,7 +41,7 @@ export function useFacilities() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const createFacility = async (facility: { name: string; description?: string; address?: string }) => {
     try {

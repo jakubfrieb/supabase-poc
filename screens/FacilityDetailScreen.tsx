@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
 import { useIssues } from '../hooks/useIssues';
@@ -41,6 +41,13 @@ export function FacilityDetailScreen() {
   useEffect(() => {
     fetchFacility();
   }, [facilityId]);
+
+  // Refetch issues when screen regains focus so new issues appear without manual refresh
+  useFocusEffect(
+    useCallback(() => {
+      fetchIssues();
+    }, [fetchIssues])
+  );
 
   const fetchFacility = async () => {
     try {

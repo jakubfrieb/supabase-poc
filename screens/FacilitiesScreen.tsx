@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFacilities } from '../hooks/useFacilities';
 import { Card } from '../components/Card';
@@ -16,6 +16,13 @@ export function FacilitiesScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { facilities, loading, fetchFacilities } = useFacilities();
   const { user, signOut } = useAuth();
+
+  // Refetch when the screen gains focus so newly created facilities appear immediately
+  useFocusEffect(
+    useCallback(() => {
+      fetchFacilities();
+    }, [fetchFacilities])
+  );
 
   const handleCreateFacility = () => {
     navigation.navigate('CreateFacility');

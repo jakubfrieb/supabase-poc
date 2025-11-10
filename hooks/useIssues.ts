@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Issue, IssueStatus, IssuePriority } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,7 +15,17 @@ export function useIssues(facilityId?: string) {
     }
   }, [user, facilityId]);
 
-  const fetchIssues = async () => {
+  // Refetch when auth session changes (ensures token is attached before query)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && facilityId) {
+        fetchIssues();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [facilityId]);
+
+  const fetchIssues = useCallback(async () => {
     try {
       setLoading(true);
       let query = supabase.from('issues').select('*');
@@ -34,7 +44,7 @@ export function useIssues(facilityId?: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [facilityId]);
 
   const createIssue = async (issue: {
     title: string;
