@@ -5,19 +5,7 @@ import { Button } from '../components/Button';
 import { colors, spacing, fontSize, fontWeight } from '../theme/colors';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
-
-// Conditionally import BarCodeScanner - it's not available in Expo Go
-let BarCodeScanner: any = null;
-let isBarCodeScannerAvailable = false;
-
-try {
-  const barcodeModule = require('expo-barcode-scanner');
-  BarCodeScanner = barcodeModule.BarCodeScanner;
-  isBarCodeScannerAvailable = true;
-} catch (e) {
-  // Module not available (e.g., in Expo Go)
-  isBarCodeScannerAvailable = false;
-}
+import { CameraView, Camera } from 'expo-camera';
 
 export function JoinFacilityScreen() {
   const { t } = useTranslation();
@@ -26,9 +14,9 @@ export function JoinFacilityScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (scanning && isBarCodeScannerAvailable && BarCodeScanner) {
+    if (scanning) {
       (async () => {
-        const { status } = await BarCodeScanner.requestPermissionsAsync();
+        const { status } = await Camera.requestCameraPermissionsAsync();
         setHasPermission(status === 'granted');
       })();
     }
@@ -76,26 +64,25 @@ export function JoinFacilityScreen() {
       />
       <Button title="Připojit se" onPress={() => handleJoin(code)} />
 
-      {isBarCodeScannerAvailable && (
-        <>
-          <View style={{ height: spacing.xl }} />
-          {!scanning ? (
-            <Button title="Naskenovat QR kód" variant="outline" onPress={() => setScanning(true)} />
-          ) : hasPermission === false ? (
-            <Text style={styles.info}>Přístup ke kameře byl zamítnut.</Text>
-          ) : BarCodeScanner ? (
-            <View style={{ height: 300, overflow: 'hidden', borderRadius: 12 }}>
-              <BarCodeScanner
-                onBarCodeScanned={({ data }) => {
-                  setScanning(false);
-                  handleJoin(String(data));
-                }}
-                style={{ width: '100%', height: '100%' }}
-              />
-            </View>
-          ) : null}
-        </>
-      )}
+      <>
+        <View style={{ height: spacing.xl }} />
+        {!scanning ? (
+          <Button title="Naskenovat QR kód" variant="outline" onPress={() => setScanning(true)} />
+        ) : hasPermission === false ? (
+          <Text style={styles.info}>Přístup ke kameře byl zamítnut.</Text>
+        ) : (
+          <View style={{ height: 300, overflow: 'hidden', borderRadius: 12 }}>
+            <CameraView
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={({ data }: { data: string }) => {
+                setScanning(false);
+                handleJoin(String(data));
+              }}
+              style={{ width: '100%', height: '100%' }}
+            />
+          </View>
+        )}
+      </>
     </SafeAreaView>
   );
 }

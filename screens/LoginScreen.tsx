@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -90,11 +91,13 @@ export function LoginScreen({ navigation }: Props) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              <Text style={styles.icon}>🏢</Text>
+            <View style={styles.logoContainer}>
+              <Image 
+                source={require('../assets/logo.png')} 
+                style={styles.logo}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.title}>{t('appName')}</Text>
-            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
           </View>
 
           <View style={styles.form}>
@@ -187,32 +190,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xxxl,
   },
-  iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.primary,
+  logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.xl,
-    ...shadows.lg,
+    marginVertical: -20,
+    marginBottom: -40,
+
   },
-  icon: {
-    fontSize: 50,
-  },
-  title: {
-    fontSize: fontSize.xxxl,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: spacing.lg,
+  logo: {
+    width: 200,
+    height: 200,
   },
   form: {
     width: '100%',

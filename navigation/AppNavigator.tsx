@@ -16,6 +16,7 @@ import { CreateIssueScreen } from '../screens/CreateIssueScreen';
 import { IssueDetailScreen } from '../screens/IssueDetailScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { JoinFacilityScreen } from '../screens/JoinFacilityScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -73,6 +74,11 @@ export function AppNavigator() {
               name="Profile"
               component={ProfileScreen}
               options={{ title: 'Profil' }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{ title: 'Notifikace' }}
             />
             <Stack.Screen
               name="JoinFacility"

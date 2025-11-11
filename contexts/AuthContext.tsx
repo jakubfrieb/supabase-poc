@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { registerPushToken, savePushToken, setupNotificationListener } from '../lib/notifications';
+import { Platform } from 'react-native';
 
 interface AuthContextType {
   session: Session | null;
@@ -33,10 +35,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      // Register push token when a valid session with user exists (optional, for push notifications)
+      if (session?.user) {
+        registerPushToken()
+          .then((token) => token ? savePushToken(token, session.user!.id, Platform.OS as 'ios' | 'android' | 'web') : undefined)
+          .catch((e) => console.log('Push token registration failed:', e));
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Setup Supabase Realtime listener for local notifications (works WITHOUT FCM!)
+  useEffect(() => {
+    if (!user) return;
+
+    // Setup Realtime listener - when notification is created in DB, show local notification
+    const cleanup = setupNotificationListener(user.id);
+    
+    return cleanup;
+  }, [user]);
 
   const signInWithGoogle = async () => {
     try {

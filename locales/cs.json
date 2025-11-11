@@ -6,7 +6,8 @@
     "create": "Vytvořit",
     "save": "Uložit",
     "ok": "OK",
-    "or": "NEBO"
+    "or": "NEBO",
+    "success": "Úspěch"
   },
   "auth": {
     "loginTitle": "Přihlášení",
@@ -34,18 +35,34 @@
     "name": "Název nemovitosti",
     "description": "Popis",
     "address": "Adresa",
-    "newFacility": "Nová nemovitost"
+    "newFacility": "Nová nemovitost",
+    "subscription": "Předplatné",
+    "activeUntil": "platné do"
   },
   "issues": {
     "createTitle": "Vytvořit závadu",
     "title": "Název závady",
     "description": "Popis",
-    "priority": "Priorita",
-    "status": "Stav",
+    "attachments": "Přílohy",
     "createIssue": "Vytvořit závadu",
     "cancel": "Zrušit",
     "noIssues": "Zatím žádné závady",
-    "noIssuesHint": "Vytvořte první závadu pro zahájení sledování"
+    "noIssuesHint": "Vytvořte první závadu pro zahájení sledování",
+    "changeStatus": "Změnit stav",
+    "pickFromGallery": "Z galerie",
+    "takePhoto": "Vyfotit",
+    "noAttachments": "Žádné přílohy",
+    "statusNames": {
+      "open": "Otevřeno",
+      "in_progress": "V řešení",
+      "resolved": "Vyřešeno",
+      "closed": "Uzavřeno"
+    },
+    "descriptionLabel": "Popis",
+    "details": "Detaily",
+    "created": "Vytvořeno",
+    "lastUpdated": "Poslední aktualizace",
+    "statusUpdated": "Stav závady byl aktualizován"
   },
   "profile": {
     "title": "Profil",
@@ -54,10 +71,15 @@
     "status": "Stav",
     "paidUntil": "Zaplaceno do",
     "statuses": {
-      "pending": "Čeká",
-      "paused": "Pozastaveno",
+      "pending": "Čekající",
+      "paused": "Pozastavená",
       "active": "Zaplaceno"
-    }
+    },
+    "signOut": "Odhlásit se",
+    "deleteFacility": "Smazat nemovitost",
+    "deleteFacilityTitle": "Smazat nemovitost",
+    "deleteFacilityMessage": "Tato operace je nevratná. Budou smazána všechna data nemovitosti včetně závad, zpráv a příloh. Všichni uživatelé a dodavatelé budou odpojeni.",
+    "deleteConfirmationLabel": "Pro potvrzení napište: {{word}}"
   }
 }
 

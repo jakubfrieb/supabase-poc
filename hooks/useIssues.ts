@@ -64,6 +64,32 @@ export function useIssues(facilityId?: string) {
 
       if (error) throw error;
       setIssues([data, ...issues]);
+
+      // Send notification to facility owner via Supabase Edge Function
+      try {
+        const { data: facility, error: facilityError } = await supabase
+          .from('facilities')
+          .select('user_id, name')
+          .eq('id', issue.facility_id)
+          .single();
+
+        if (!facilityError && facility) {
+          // Call Edge Function to send notification
+          await supabase.functions.invoke('send-notification', {
+            body: {
+              issueId: data.id,
+              issueTitle: issue.title,
+              facilityId: issue.facility_id,
+              facilityName: facility.name,
+              ownerId: facility.user_id,
+            },
+          });
+        }
+      } catch (notifError) {
+        // Don't fail issue creation if notification fails
+        console.error('Error sending notification:', notifError);
+      }
+
       return data;
     } catch (err) {
       console.error('Error creating issue:', err);

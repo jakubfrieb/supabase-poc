@@ -8,6 +8,7 @@ A modern mobile application built with React Native and Expo that allows users t
 - **Facility Management**: Create, view, and manage multiple facilities
 - **Issue Tracking**: Report and track issues within each facility
 - **Priority & Status Management**: Organize issues by priority (low, medium, high, urgent) and status (open, in progress, resolved, closed)
+- **Push Notifications**: Get notified when new issues are created (via Supabase Edge Functions)
 - **Real-time Updates**: Powered by Supabase for instant data synchronization
 - **Mobile-First Design**: Clean, intuitive UI optimized for mobile devices
 - **Cross-Platform**: Works on iOS, Android, and Web
@@ -206,6 +207,18 @@ eas build --platform android
 ```
 
 See [Expo EAS documentation](https://docs.expo.dev/build/introduction/) for detailed instructions.
+
+## Push Notifications
+
+This app includes push notification support via Supabase Edge Functions. See [NOTIFICATIONS_SETUP.md](./NOTIFICATIONS_SETUP.md) for detailed setup instructions.
+
+**Quick overview:**
+1. Edge Function `send-notification` handles sending push notifications
+2. Notifications are sent when new issues are created
+3. Push tokens are stored in `user_push_tokens` table
+4. Uses Expo Push API (free, unlimited notifications)
+
+**Note:** Push token registration is prepared but not yet fully implemented. See NOTIFICATIONS_SETUP.md for implementation details.
 
 ## Troubleshooting
 

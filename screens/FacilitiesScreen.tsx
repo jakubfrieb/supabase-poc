@@ -10,6 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
 import { useTranslation } from 'react-i18next';
+import { useUnreadNotificationsCount } from '../hooks/useNotifications';
+import { Ionicons } from '@expo/vector-icons';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -18,6 +20,7 @@ export function FacilitiesScreen() {
   const { facilities, loading, fetchFacilities } = useFacilities();
   const { user, signOut } = useAuth();
   const { t } = useTranslation();
+  const { count } = useUnreadNotificationsCount();
 
   // Refetch when the screen gains focus so newly created facilities appear immediately
   useFocusEffect(
@@ -41,9 +44,19 @@ export function FacilitiesScreen() {
           <Text style={styles.greeting}>{t('facilities.greeting', { name: user?.email?.split('@')[0] })}</Text>
           <Text style={styles.title}>{t('facilities.yourFacilities')}</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)} style={styles.avatar}>
-          <Text style={styles.avatarText}>{user?.email?.charAt(0).toUpperCase()}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => navigation.navigate('Notifications' as never)} style={styles.bell}>
+            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+            {count > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)} style={styles.avatar}>
+            <Text style={styles.avatarText}>{user?.email?.charAt(0).toUpperCase()}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -115,6 +128,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
     paddingBottom: 20,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  bell: {
+    position: 'relative',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#E53935',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
   },
   greeting: {
     fontSize: fontSize.sm,

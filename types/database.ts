@@ -8,6 +8,8 @@ export interface Database {
           description: string | null;
           address: string | null;
           user_id: string;
+          subscription_status: 'pending' | 'paused' | 'active';
+          paid_until: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -17,6 +19,8 @@ export interface Database {
           description?: string | null;
           address?: string | null;
           user_id: string;
+          subscription_status?: 'pending' | 'paused' | 'active';
+          paid_until?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -26,6 +30,8 @@ export interface Database {
           description?: string | null;
           address?: string | null;
           user_id?: string;
+          subscription_status?: 'pending' | 'paused' | 'active';
+          paid_until?: string | null;
           created_at?: string;
           updated_at?: string;
         };
