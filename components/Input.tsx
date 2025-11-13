@@ -41,14 +41,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   input: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
     fontSize: fontSize.md,
     color: colors.text,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   inputFocused: {
     borderColor: colors.primary,

@@ -182,3 +182,38 @@ export function setupNotificationListener(userId: string, onNotification?: (noti
   };
 }
 
+/**
+ * Create a test notification directly in the database
+ * Note: This requires RLS policy that allows users to insert their own notifications
+ * For production, use Edge Function instead
+ */
+export async function createTestNotification(
+  userId: string,
+  type: string = 'issue_created',
+  title: string,
+  body: string | null = null,
+  data?: any
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId,
+        type,
+        title,
+        body,
+        data: data || {},
+      });
+
+    if (error) {
+      console.error('Error creating test notification:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error creating test notification:', error);
+    return { success: false, error: error.message };
+  }
+}
+

@@ -95,6 +95,33 @@ export function useFacilities() {
     }
   };
 
+  const leaveFacility = async (facilityId: string) => {
+    try {
+      if (!user) throw new Error('User not authenticated');
+
+      // Check if user is the owner
+      const facility = facilities.find(f => f.id === facilityId);
+      if (facility && facility.user_id === user.id) {
+        throw new Error('Vlastník nemovitosti nemůže opustit nemovitost. Pokud chcete nemovitost odstranit, použijte tlačítko pro smazání.');
+      }
+
+      // Remove user from facility_members
+      const { error } = await supabase
+        .from('facility_members')
+        .delete()
+        .eq('facility_id', facilityId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Refresh facilities list
+      await fetchFacilities();
+    } catch (err) {
+      console.error('Error leaving facility:', err);
+      throw err;
+    }
+  };
+
   return {
     facilities,
     loading,
@@ -103,5 +130,6 @@ export function useFacilities() {
     createFacility,
     updateFacility,
     deleteFacility,
+    leaveFacility,
   };
 }

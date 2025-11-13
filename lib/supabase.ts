@@ -28,3 +28,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// Export supabaseUrl for use in OAuth flows
+export { supabaseUrl };

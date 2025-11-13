@@ -137,6 +137,10 @@ export function IssueDetailScreen() {
   };
 
   const handleDelete = () => {
+    if (!isAdminOrOwner) {
+      Alert.alert('Chyba', 'Nemáte oprávnění smazat závadu. Pouze vlastník nebo správce nemovitosti může mazat závady.');
+      return;
+    }
     Alert.alert(
       'Delete Issue',
       'Are you sure you want to delete this issue? This action cannot be undone.',
@@ -293,13 +297,15 @@ export function IssueDetailScreen() {
               />
               <Text style={styles.title}>{issue.title}</Text>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowDeleteModal(true)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.deleteIconButton}
-            >
-              <Ionicons name="trash-outline" size={22} color={colors.error} />
-            </TouchableOpacity>
+            {isAdminOrOwner && (
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(true)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.deleteIconButton}
+              >
+                <Ionicons name="trash-outline" size={22} color={colors.error} />
+              </TouchableOpacity>
+            )}
           </View>
           <View style={styles.badges}>
               <View
@@ -582,6 +588,10 @@ export function IssueDetailScreen() {
                 variant="danger"
                 onPress={async () => {
                   if (!deleteReason.trim()) return;
+                  if (!isAdminOrOwner) {
+                    Alert.alert('Chyba', 'Nemáte oprávnění smazat závadu. Pouze vlastník nebo správce nemovitosti může mazat závady.');
+                    return;
+                  }
                   try {
                     await sendMessage(`[Smazáno] ${deleteReason.trim()}`, null);
                   } catch {}

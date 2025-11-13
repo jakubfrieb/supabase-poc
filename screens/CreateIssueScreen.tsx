@@ -32,6 +32,7 @@ export function CreateIssueScreen() {
   const [priority, setPriority] = useState<IssuePriority>('normal');
   const [loading, setLoading] = useState(false);
   const [attachments, setAttachments] = useState<{ uri: string; base64: string | null }[]>([]);
+  const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
 
   const ensureMediaLibraryPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -207,13 +208,19 @@ export function CreateIssueScreen() {
               <Text style={styles.sectionLabel}>{t('issues.description')}</Text>
               <View style={styles.inputContainer}>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    isDescriptionFocused && styles.inputFocused
+                  ]}
                   placeholder={t('issues.description')}
+                  placeholderTextColor={colors.placeholder}
                   value={description}
                   onChangeText={setDescription}
                   multiline
                   numberOfLines={6}
                   textAlignVertical="top"
+                  onFocus={() => setIsDescriptionFocused(true)}
+                  onBlur={() => setIsDescriptionFocused(false)}
                 />
                 <View style={styles.inputIcons}>
                   <TouchableOpacity
@@ -353,13 +360,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
     paddingRight: 80, // space for icons
     paddingBottom: 45, // space for icons at bottom
     minHeight: 120,
     maxHeight: 240,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   inputIcons: {
     position: 'absolute',

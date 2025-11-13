@@ -2,7 +2,7 @@ require('dotenv').config();
 
 module.exports = {
   expo: {
-    name: "",
+    name: "Altrano",
     slug: "altrano",
     version: "1.0.0",
     orientation: "portrait",
@@ -13,7 +13,12 @@ module.exports = {
     splash: {
       backgroundColor: "#FFFFFF"
     },
+    notification: {
+      icon: "./assets/logo_small.png",
+      color: "#007AFF"
+    },
     ios: {
+      icon: "./assets/logo_small.png",
       supportsTablet: true,
       bundleIdentifier: "cz.digitalmind.altrano"
     },
@@ -22,6 +27,7 @@ module.exports = {
         foregroundImage: "./assets/logo_small.png",
         backgroundColor: "#FFFFFF"
       },
+      icon: "./assets/logo_small.png",
       package: "cz.digitalmind.altrano",
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,

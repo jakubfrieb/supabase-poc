@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFacilities } from '../hooks/useFacilities';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useFacilityRole } from '../hooks/useFacilityRole';
-import { colors, spacing, fontSize, fontWeight } from '../theme/colors';
+import { colors, spacing, fontSize, fontWeight, borderRadius } from '../theme/colors';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../components/Button';
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog';
@@ -20,13 +20,15 @@ function FacilityCard({
   onEdit, 
   onUsers, 
   onNotes, 
-  onDelete 
+  onDelete,
+  onLeave
 }: { 
   item: Facility; 
   onEdit: (f: Facility) => void;
   onUsers: (id: string) => void;
   onNotes: (f: Facility) => void;
   onDelete: (id: string) => void;
+  onLeave: (id: string) => void;
 }) {
   const { role } = useFacilityRole(item.id);
   const { t } = useTranslation();
@@ -36,38 +38,49 @@ function FacilityCard({
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.facilityName}>{item.name}</Text>
-        {isOwner && (
-          <View style={styles.actionButtons}>
+        <View style={styles.actionButtons}>
+          {isOwner && (
+            <>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => onEdit(item)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.usersButton}
+                onPress={() => onUsers(item.id)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="people-outline" size={22} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.notesButton}
+                onPress={() => onNotes(item)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => onDelete(item.id)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="trash" size={22} color="#E53935" />
+              </TouchableOpacity>
+            </>
+          )}
+          {!isOwner && (
             <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => onEdit(item)}
+              style={styles.leaveButton}
+              onPress={() => onLeave(item.id)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+              <Ionicons name="log-out-outline" size={22} color="#E53935" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.usersButton}
-              onPress={() => onUsers(item.id)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="people-outline" size={22} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.notesButton}
-              onPress={() => onNotes(item)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="document-text-outline" size={22} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => onDelete(item.id)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="trash" size={22} color="#E53935" />
-            </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
       </View>
       {item.description ? <Text style={styles.facilityDesc}>{item.description}</Text> : null}
       {item.address ? (
@@ -102,7 +115,7 @@ function FacilityCard({
 
 export function ProfileScreen() {
   const { user, signOut } = useAuth();
-  const { facilities, updateFacility, deleteFacility } = useFacilities();
+  const { facilities, updateFacility, deleteFacility, leaveFacility } = useFacilities();
   const { profile, updateProfile, uploadAvatar } = useUserProfile();
   const { t, ready } = useTranslation();
   
@@ -123,6 +136,7 @@ export function ProfileScreen() {
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [editingNotes, setEditingNotes] = useState('');
   const [facilityForNotes, setFacilityForNotes] = useState<Facility | null>(null);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   const handleSignOut = async () => {
     try {
@@ -198,6 +212,28 @@ export function ProfileScreen() {
   const handleDeleteCancel = () => {
     setDeleteDialogVisible(false);
     setFacilityToDelete(null);
+  };
+
+  const handleLeaveFacility = (facilityId: string) => {
+    Alert.alert(
+      'Opustit nemovitost',
+      'Opravdu chcete opustit tuto nemovitost?',
+      [
+        { text: 'Zrušit', style: 'cancel' },
+        {
+          text: 'Opustit',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await leaveFacility(facilityId);
+              Alert.alert('Hotovo', 'Opustili jste nemovitost.');
+            } catch (error: any) {
+              Alert.alert('Chyba', error.message || 'Nepodařilo se opustit nemovitost.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleEditProfile = () => {
@@ -440,6 +476,7 @@ export function ProfileScreen() {
             }}
             onNotes={handleEditNotes}
             onDelete={handleDeleteFacility}
+            onLeave={handleLeaveFacility}
           />
         )}
       />
@@ -466,27 +503,46 @@ export function ProfileScreen() {
             </View>
             
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                focusedInput === 'facilityName' && styles.inputFocused
+              ]}
               placeholder="Název nemovitosti"
+              placeholderTextColor={colors.placeholder}
               value={editName}
               onChangeText={setEditName}
+              onFocus={() => setFocusedInput('facilityName')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[
+                styles.input,
+                styles.textArea,
+                focusedInput === 'facilityDescription' && styles.inputFocused
+              ]}
               placeholder="Popis"
+              placeholderTextColor={colors.placeholder}
               value={editDescription}
               onChangeText={setEditDescription}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+              onFocus={() => setFocusedInput('facilityDescription')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                focusedInput === 'facilityAddress' && styles.inputFocused
+              ]}
               placeholder="Adresa"
+              placeholderTextColor={colors.placeholder}
               value={editAddress}
               onChangeText={setEditAddress}
+              onFocus={() => setFocusedInput('facilityAddress')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <View style={styles.modalButtons}>
@@ -523,32 +579,56 @@ export function ProfileScreen() {
             </View>
             
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                focusedInput === 'firstName' && styles.inputFocused
+              ]}
               placeholder="Jméno"
+              placeholderTextColor={colors.placeholder}
               value={editFirstName}
               onChangeText={setEditFirstName}
+              onFocus={() => setFocusedInput('firstName')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                focusedInput === 'lastName' && styles.inputFocused
+              ]}
               placeholder="Příjmení"
+              placeholderTextColor={colors.placeholder}
               value={editLastName}
               onChangeText={setEditLastName}
+              onFocus={() => setFocusedInput('lastName')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                focusedInput === 'title' && styles.inputFocused
+              ]}
               placeholder="Titul"
+              placeholderTextColor={colors.placeholder}
               value={editTitle}
               onChangeText={setEditTitle}
+              onFocus={() => setFocusedInput('title')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                focusedInput === 'phone' && styles.inputFocused
+              ]}
               placeholder="Telefon"
+              placeholderTextColor={colors.placeholder}
               value={editPhone}
               onChangeText={setEditPhone}
               keyboardType="phone-pad"
+              onFocus={() => setFocusedInput('phone')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <View style={styles.modalButtons}>
@@ -614,13 +694,20 @@ export function ProfileScreen() {
             </View>
             
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[
+                styles.input,
+                styles.textArea,
+                focusedInput === 'notes' && styles.inputFocused
+              ]}
               placeholder="Zde můžete psát poznámky k nemovitosti..."
+              placeholderTextColor={colors.placeholder}
               value={editingNotes}
               onChangeText={setEditingNotes}
               multiline
               numberOfLines={10}
               textAlignVertical="top"
+              onFocus={() => setFocusedInput('notes')}
+              onBlur={() => setFocusedInput(null)}
             />
             
             <View style={styles.modalButtons}>
@@ -809,6 +896,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  leaveButton: {
+    padding: 4,
+    minWidth: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   facilityName: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
@@ -882,15 +975,19 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   input: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
     marginBottom: spacing.md,
     fontSize: fontSize.md,
     color: colors.text,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   textArea: {
     minHeight: 80,
