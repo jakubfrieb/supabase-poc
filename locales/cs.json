@@ -27,7 +27,10 @@
     "yourFacilities": "Vaše nemovitosti",
     "noFacilities": "Zatím žádné nemovitosti",
     "noFacilitiesHint": "Vytvořte první nemovitost pro sledování závad",
-    "createFacility": "Vytvořit nemovitost"
+    "createFacility": "Vytvořit nemovitost",
+    "addFacility": "Nový dům",
+    "linkFacility": "Propojit dům",
+    "addService": "Nová služba"
   },
   "facility": {
     "createTitle": "Vytvořit nemovitost",

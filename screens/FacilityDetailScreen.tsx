@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, TextInput, Modal, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, TextInput, Modal, ImageBackground, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { UserAvatar } from '../components/UserAvatar';
 import { useFacilityRole } from '../hooks/useFacilityRole';
+import { useFacilities } from '../hooks/useFacilities';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'FacilityDetail'>;
@@ -40,9 +41,15 @@ export function FacilityDetailScreen() {
   const [voucher, setVoucher] = useState('');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showVoucherInput, setShowVoucherInput] = useState(false);
+  const [isVoucherInputFocused, setIsVoucherInputFocused] = useState(false);
+  const [notesModalVisible, setNotesModalVisible] = useState(false);
+  const [editingNotes, setEditingNotes] = useState('');
+  const [isNotesInputFocused, setIsNotesInputFocused] = useState(false);
 
   const { issues, loading, fetchIssues } = useIssues(facilityId);
   const { role, isAdminOrOwner } = useFacilityRole(facilityId);
+  const { updateFacility } = useFacilities();
 
   useEffect(() => {
     fetchFacility();
@@ -123,13 +130,6 @@ export function FacilityDetailScreen() {
     }
   };
 
-  const handleShowInvite = () => {
-    if (inviteCode) {
-      setShowInviteModal(true);
-    } else {
-      Alert.alert('Chyba', 'Nepodařilo se načíst kód pro pozvání.');
-    }
-  };
 
   const handleCreateIssue = () => {
     navigation.navigate('CreateIssue', { facilityId });
@@ -137,6 +137,27 @@ export function FacilityDetailScreen() {
 
   const handleIssuePress = (issueId: string) => {
     navigation.navigate('IssueDetail', { issueId, facilityId });
+  };
+
+  const handleEditNotes = () => {
+    if (!facility) return;
+    setEditingNotes((facility as any).notes || '');
+    setNotesModalVisible(true);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!facility) return;
+    try {
+      await updateFacility(facility.id, {
+        notes: editingNotes.trim() || null,
+      } as any);
+      await fetchFacility();
+      setNotesModalVisible(false);
+      setEditingNotes('');
+      Alert.alert('Hotovo', 'Poznámky byly uloženy.');
+    } catch (error) {
+      Alert.alert('Chyba', 'Nepodařilo se uložit poznámky.');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -209,14 +230,20 @@ export function FacilityDetailScreen() {
       <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.facilityInfo}>
         <View style={styles.facilityHeader}>
-          <View style={styles.facilityTitleContainer}>
-            <Text style={styles.facilityName}>{facility?.name}</Text>
-            {isAdminOrOwner && (
-              <TouchableOpacity onPress={handleShowInvite} style={styles.eyeButton}>
-                <Ionicons name="eye-outline" size={24} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
+          <Text style={styles.facilityName}>{facility?.name}</Text>
+          {isAdminOrOwner && (
+            <TouchableOpacity
+              onPress={handleEditNotes}
+              style={styles.notesButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons 
+                name="document-text-outline" 
+                size={22} 
+                color={(facility as any)?.notes ? colors.primary : colors.textSecondary} 
+              />
+            </TouchableOpacity>
+          )}
         </View>
         {facility?.description && (
           <Text style={styles.facilityDescription}>{facility.description}</Text>
@@ -282,104 +309,126 @@ export function FacilityDetailScreen() {
         ListHeaderComponent={
           (facility as any)?.subscription_status !== 'active' ? (
             role === 'owner' ? (
-              <View style={styles.paymentCard}>
-                <Text style={styles.payTitle}>Symbolický poplatek 20 Kč/rok</Text>
-                <Text style={styles.payDesc}>
-                  Poplatek je nevratný a zajišťuje bezpečné používání služby.
-                </Text>
-                <View style={styles.qrContainer}>
-                  <QRCode
-                    value={JSON.stringify({
-                      facilityId,
-                      amountCZK: 20,
-                      message:
-                        'Symbolický, nevratný poplatek 20 Kč/rok, zajišťuje bezpečné používání služby.',
-                    })}
-                    size={140}
-                  />
-                </View>
-                <View style={styles.voucherRow}>
-                  <TextInput
-                    style={styles.voucherInput}
-                    value={voucher}
-                    onChangeText={setVoucher}
-                    placeholder="Voucher kód"
-                    autoCapitalize="characters"
-                  />
-                  <Button
-                    title="Uplatnit"
-                    onPress={async () => {
-                      try {
-                        if (!voucher.trim()) return;
-                        const { data: v, error: verr } = await supabase
-                          .from('vouchers')
-                          .select('months, active, expires_at')
-                          .eq('code', voucher.trim())
-                          .single();
-                        if (verr || !v) throw new Error('Neplatný voucher');
-                        if (v.active === false) throw new Error('Voucher je neaktivní');
-                        if (v.expires_at && new Date(v.expires_at) < new Date()) throw new Error('Voucher vypršel');
+              <View style={styles.paymentCardWrapper}>
+                <Card>
+                  <Text style={styles.payTitle}>Symbolický poplatek 20 Kč/rok</Text>
+                  <Text style={styles.payDesc}>
+                    Poplatek je nevratný a zajišťuje bezpečné používání služby.
+                  </Text>
+                  <View style={styles.qrContainer}>
+                    <QRCode
+                      value={JSON.stringify({
+                        facilityId,
+                        amountCZK: 20,
+                        message:
+                          'Symbolický, nevratný poplatek 20 Kč/rok, zajišťuje bezpečné používání služby.',
+                      })}
+                      size={140}
+                    />
+                  </View>
+                  <TouchableOpacity onPress={() => setShowVoucherInput(!showVoucherInput)}>
+                    <Text style={styles.voucherToggleText}>Máte voucher?</Text>
+                  </TouchableOpacity>
+                  {showVoucherInput && (
+                    <View style={styles.voucherRow}>
+                      <TextInput
+                        style={[
+                          styles.voucherInput,
+                          isVoucherInputFocused && styles.voucherInputFocused,
+                        ]}
+                        value={voucher}
+                        onChangeText={setVoucher}
+                        placeholder="Voucher kód"
+                        autoCapitalize="characters"
+                        placeholderTextColor={colors.placeholder}
+                        onFocus={() => setIsVoucherInputFocused(true)}
+                        onBlur={() => setIsVoucherInputFocused(false)}
+                      />
+                      <Button
+                        title="Uplatnit"
+                        onPress={async () => {
+                          try {
+                            if (!voucher.trim()) return;
+                            const { data: v, error: verr } = await supabase
+                              .from('vouchers')
+                              .select('months, active, expires_at')
+                              .eq('code', voucher.trim())
+                              .single();
+                            if (verr || !v) throw new Error('Neplatný voucher');
+                            if (v.active === false) throw new Error('Voucher je neaktivní');
+                            if (v.expires_at && new Date(v.expires_at) < new Date()) throw new Error('Voucher vypršel');
 
-                        const current = (facility as any)?.paid_until
-                          ? new Date((facility as any).paid_until)
-                          : new Date();
-                        const newPaid = new Date(current);
-                        newPaid.setMonth(newPaid.getMonth() + (v.months ?? 12));
+                            const current = (facility as any)?.paid_until
+                              ? new Date((facility as any).paid_until)
+                              : new Date();
+                            const newPaid = new Date(current);
+                            newPaid.setMonth(newPaid.getMonth() + (v.months ?? 12));
 
-                        const { data: upd, error: uerr } = await supabase
-                          .from('facilities')
-                          .update({ subscription_status: 'active', paid_until: newPaid.toISOString() })
-                          .eq('id', facilityId)
-                          .select()
-                          .single();
-                        if (uerr) throw uerr;
-                        setFacility(upd as any);
-                        setVoucher('');
-                        Alert.alert('Hotovo', 'Předplatné bylo aktivováno.');
-                      } catch (e: any) {
-                        Alert.alert('Chyba', e.message ?? 'Voucher se nepodařilo uplatnit.');
-                      }
-                    }}
-                  />
-                </View>
+                            const { data: upd, error: uerr } = await supabase
+                              .from('facilities')
+                              .update({ subscription_status: 'active', paid_until: newPaid.toISOString() })
+                              .eq('id', facilityId)
+                              .select()
+                              .single();
+                            if (uerr) throw uerr;
+                            setFacility(upd as any);
+                            setVoucher('');
+                            setShowVoucherInput(false);
+                            Alert.alert('Hotovo', 'Předplatné bylo aktivováno.');
+                          } catch (e: any) {
+                            Alert.alert('Chyba', e.message ?? 'Voucher se nepodařilo uplatnit.');
+                          }
+                        }}
+                      />
+                    </View>
+                  )}
+                </Card>
               </View>
             ) : (
-              <View style={styles.paymentCard}>
-                <Text style={styles.demoModeText}>Tento dům je v ukázkovém režimu</Text>
+              <View style={styles.paymentCardWrapper}>
+                <Card>
+                  <Text style={styles.demoModeText}>Tento dům je v ukázkovém režimu</Text>
+                </Card>
               </View>
             )
           ) : null
         }
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleIssuePress(item.id)}>
-            <Card>
-              <View style={styles.issueHeader}>
-                <View style={styles.titleRow}>
-                  <PriorityBadge 
-                    priority={item.priority as any}
-                    showText={false}
-                    size="small"
-                    showTooltip={false}
-                  />
-                  <Text style={styles.issueTitle} numberOfLines={2}>
-                    {item.title}
+          <Pressable
+            onPress={() => handleIssuePress(item.id)}
+            style={styles.cardWrapper}
+            delayPressIn={100}
+          >
+            {({ pressed }) => (
+              <Card pressed={pressed}>
+                <View style={styles.issueHeader}>
+                  <View style={styles.titleRow}>
+                    <PriorityBadge 
+                      priority={item.priority as any}
+                      showText={false}
+                      size="small"
+                      showTooltip={false}
+                    />
+                    <Text style={styles.issueTitle} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+                  </View>
+                  <View style={styles.badges}>
+                    {getStatusBadge(item.status)}
+                  </View>
+                </View>
+                <View style={styles.reportedByRow}>
+                  <Text style={styles.reportedByLabel}>{t('issues.reportedBy')}</Text>
+                  <UserAvatar userId={item.created_by} size="small" showName={true} />
+                </View>
+                {item.description && (
+                  <Text style={styles.issueDescription} numberOfLines={2}>
+                    {item.description}
                   </Text>
-                </View>
-                <View style={styles.badges}>
-                  {getStatusBadge(item.status)}
-                </View>
-              </View>
-              <View style={styles.reportedByRow}>
-                <Text style={styles.reportedByLabel}>{t('issues.reportedBy')}</Text>
-                <UserAvatar userId={item.created_by} size="small" showName={true} />
-              </View>
-              {item.description && (
-                <Text style={styles.issueDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-              )}
-            </Card>
-          </TouchableOpacity>
+                )}
+              </Card>
+            )}
+          </Pressable>
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -397,6 +446,56 @@ export function FacilityDetailScreen() {
         />
       </View>
 
+      {/* Notes Modal */}
+      <Modal
+        visible={notesModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setNotesModalVisible(false);
+          setEditingNotes('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>Poznámky k nemovitosti</Text>
+              <TouchableOpacity onPress={() => {
+                setNotesModalVisible(false);
+                setEditingNotes('');
+              }}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <TextInput
+              style={[
+                styles.input,
+                styles.textArea,
+                isNotesInputFocused && styles.inputFocused
+              ]}
+              placeholder="Zde můžete psát poznámky k nemovitosti..."
+              placeholderTextColor={colors.placeholder}
+              value={editingNotes}
+              onChangeText={setEditingNotes}
+              multiline
+              numberOfLines={8}
+              textAlignVertical="top"
+              onFocus={() => setIsNotesInputFocused(true)}
+              onBlur={() => setIsNotesInputFocused(false)}
+            />
+            
+            <View style={styles.modalButtons}>
+              <Button
+                title="Uložit"
+                onPress={handleSaveNotes}
+                style={styles.modalButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Invite Modal */}
       <Modal
         visible={showInviteModal}
@@ -407,7 +506,16 @@ export function FacilityDetailScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pozvat do nemovitosti</Text>
+              <View style={styles.modalTitleContainer}>
+                <Text style={styles.modalTitle}>Pozvat do:</Text>
+                <Text style={styles.modalFacilityName}>{facility?.name}</Text>
+                {facility?.address && (
+                  <View style={styles.modalAddressRow}>
+                    <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.modalAddress}>{facility.address}</Text>
+                  </View>
+                )}
+              </View>
               <TouchableOpacity onPress={() => setShowInviteModal(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
@@ -467,12 +575,10 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   facilityHeader: {
-    marginBottom: spacing.sm,
-  },
-  facilityTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
   facilityName: {
     fontSize: fontSize.xxl,
@@ -480,9 +586,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
   },
-  eyeButton: {
-    padding: spacing.xs,
+  notesButton: {
     marginLeft: spacing.sm,
+    padding: spacing.xs,
   },
   facilityDescription: {
     fontSize: fontSize.sm,
@@ -522,15 +628,9 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
     color: colors.textSecondary,
   },
-  paymentCard: {
-    marginHorizontal: spacing.xl,
+  paymentCardWrapper: {
     marginTop: spacing.md,
     marginBottom: spacing.lg,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   payTitle: {
     fontSize: fontSize.md,
@@ -553,23 +653,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.md,
   },
+  voucherToggleText: {
+    fontSize: fontSize.sm,
+    color: colors.textLight,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
   voucherRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+    marginTop: spacing.md,
   },
   voucherInput: {
     flex: 1,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  voucherInputFocused: {
+    borderColor: colors.primary,
   },
   listContent: {
     paddingHorizontal: spacing.xl,
     paddingBottom: 120,
+  },
+  cardWrapper: {
+    marginBottom: spacing.md,
   },
   issueHeader: {
     flexDirection: 'row',
@@ -714,13 +829,35 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.md,
   },
+  modalTitleContainer: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
   modalTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  modalFacilityName: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
     color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  modalAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.xs,
+  },
+  modalAddress: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    flex: 1,
   },
   modalDescription: {
     color: colors.textSecondary,
@@ -754,5 +891,30 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     width: '100%',
+  },
+  input: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    marginBottom: spacing.md,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
+  },
+  textArea: {
+    minHeight: 120,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  modalButton: {
+    flex: 1,
   },
 });

@@ -13,6 +13,8 @@ import { Button } from '../components/Button';
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog';
 import { FacilityMembersModal } from '../components/FacilityMembersModal';
 import { Facility } from '../types/database';
+import { supabase } from '../lib/supabase';
+import QRCode from 'react-native-qrcode-svg';
 
 // Component for facility card with role check
 function FacilityCard({ 
@@ -21,7 +23,8 @@ function FacilityCard({
   onUsers, 
   onNotes, 
   onDelete,
-  onLeave
+  onLeave,
+  onShare
 }: { 
   item: Facility; 
   onEdit: (f: Facility) => void;
@@ -29,6 +32,7 @@ function FacilityCard({
   onNotes: (f: Facility) => void;
   onDelete: (id: string) => void;
   onLeave: (id: string) => void;
+  onShare: (f: Facility) => void;
 }) {
   const { role } = useFacilityRole(item.id);
   const { t } = useTranslation();
@@ -56,11 +60,11 @@ function FacilityCard({
                 <Ionicons name="people-outline" size={22} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.notesButton}
-                onPress={() => onNotes(item)}
+                style={styles.shareButton}
+                onPress={() => onShare(item)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="document-text-outline" size={22} color={colors.primary} />
+                <Ionicons name="eye-outline" size={22} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.deleteButton}
@@ -137,6 +141,9 @@ export function ProfileScreen() {
   const [editingNotes, setEditingNotes] = useState('');
   const [facilityForNotes, setFacilityForNotes] = useState<Facility | null>(null);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [facilityForInvite, setFacilityForInvite] = useState<Facility | null>(null);
 
   const handleSignOut = async () => {
     try {
@@ -157,6 +164,57 @@ export function ProfileScreen() {
     setFacilityForNotes(facility);
     setEditingNotes((facility as any).notes || '');
     setNotesModalVisible(true);
+  };
+
+  const handleShare = async (facility: Facility) => {
+    setFacilityForInvite(facility);
+    try {
+      // Try to get existing invite code
+      const { data: existing, error: fetchError } = await supabase
+        .from('facility_invites')
+        .select('code')
+        .eq('facility_id', facility.id)
+        .eq('role', 'member')
+        .is('expires_at', null)
+        .single();
+
+      if (existing && !fetchError) {
+        setInviteCode(existing.code);
+        setInviteModalVisible(true);
+        return;
+      }
+
+      // Generate new invite code in format xxx-xxx
+      const generateCode = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+          if (i === 2) code += '-';
+        }
+        return code;
+      };
+
+      const newCode = generateCode();
+
+      // Insert new invite code
+      const { error: insertError } = await supabase
+        .from('facility_invites')
+        .insert({
+          facility_id: facility.id,
+          code: newCode,
+          role: 'member',
+          max_uses: null, // Unlimited uses
+          expires_at: null, // Never expires
+        });
+
+      if (insertError) throw insertError;
+      setInviteCode(newCode);
+      setInviteModalVisible(true);
+    } catch (error) {
+      console.error('Error managing invite code:', error);
+      Alert.alert('Chyba', 'Nepodařilo se načíst kód pro pozvání.');
+    }
   };
 
   const handleSaveNotes = async () => {
@@ -477,6 +535,7 @@ export function ProfileScreen() {
             onNotes={handleEditNotes}
             onDelete={handleDeleteFacility}
             onLeave={handleLeaveFacility}
+            onShare={handleShare}
           />
         )}
       />
@@ -730,6 +789,70 @@ export function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Invite Modal */}
+      <Modal
+        visible={inviteModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setInviteModalVisible(false);
+          setFacilityForInvite(null);
+          setInviteCode(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleContainer}>
+                <Text style={styles.modalTitle}>Pozvat do:</Text>
+                <Text style={styles.modalFacilityName}>{facilityForInvite?.name}</Text>
+                {facilityForInvite?.address && (
+                  <View style={styles.modalAddressRow}>
+                    <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                    <Text style={styles.modalAddress}>{facilityForInvite.address}</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => {
+                setInviteModalVisible(false);
+                setFacilityForInvite(null);
+                setInviteCode(null);
+              }}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalDescription}>
+              Sdílejte tento kód nebo QR kód s ostatními uživateli pro připojení k nemovitosti jako členové.
+            </Text>
+            
+            <View style={styles.inviteCodeContainer}>
+              <Text style={styles.inviteCodeLabel}>Kód pro připojení:</Text>
+              <Text style={styles.inviteCode}>{inviteCode}</Text>
+            </View>
+            
+            <View style={styles.qrCodeContainer}>
+              {inviteCode && (
+                <QRCode
+                  value={inviteCode}
+                  size={200}
+                />
+              )}
+            </View>
+            
+            <Button
+              title="Zavřít"
+              onPress={() => {
+                setInviteModalVisible(false);
+                setFacilityForInvite(null);
+                setInviteCode(null);
+              }}
+              style={styles.closeButton}
+            />
+          </View>
+        </View>
+      </Modal>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -884,6 +1007,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  shareButton: {
+    padding: 4,
+    minWidth: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   notesButton: {
     padding: 4,
     minWidth: 30,
@@ -1014,5 +1143,54 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     fontStyle: 'italic',
+  },
+  modalTitleContainer: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  modalFacilityName: {
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  modalAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: spacing.xs,
+  },
+  modalAddress: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  inviteCodeContainer: {
+    backgroundColor: colors.background,
+    padding: spacing.lg,
+    borderRadius: 12,
+    marginBottom: spacing.lg,
+    alignItems: 'center',
+  },
+  inviteCodeLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  inviteCode: {
+    fontSize: fontSize.xxl,
+    fontWeight: fontWeight.bold,
+    color: colors.primary,
+    letterSpacing: 2,
+  },
+  qrCodeContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+  },
+  closeButton: {
+    width: '100%',
   },
 });

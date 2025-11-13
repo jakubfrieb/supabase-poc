@@ -1,11 +1,12 @@
 import React, { useCallback, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ImageBackground, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ImageBackground, Image, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFacilities } from '../hooks/useFacilities';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { MetroFAB } from '../components/MetroFAB';
 import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
@@ -84,6 +85,12 @@ export function FacilitiesScreen() {
     navigation.navigate('CreateFacility');
   };
 
+  const handleAddService = () => {
+    // TODO: Implementovat navigaci na přidání služby
+    // navigation.navigate('CreateService' as never);
+    console.log('Add service pressed');
+  };
+
   const handleFacilityPress = (facilityId: string) => {
     navigation.navigate('FacilityDetail', { facilityId });
   };
@@ -131,20 +138,32 @@ export function FacilitiesScreen() {
         renderItem={({ item }) => {
           const openCount = openIssuesCounts[item.id] ?? 0;
           return (
-            <TouchableOpacity onPress={() => handleFacilityPress(item.id)}>
-              <Card>
+            <Pressable
+              onPress={() => handleFacilityPress(item.id)}
+              style={styles.cardWrapper}
+              delayPressIn={100}
+            >
+              {({ pressed }) => (
+                <Card pressed={pressed}>
                 <View style={styles.facilityHeader}>
                   <Text style={styles.facilityName}>{item.name}</Text>
-                  <View style={[
-                    styles.openIssuesBadge,
-                    openCount === 0 && styles.openIssuesBadgeEmpty
-                  ]}>
-                    <Text style={[
-                      styles.openIssuesText,
-                      openCount === 0 && styles.openIssuesTextEmpty
+                  <View style={styles.facilityHeaderRight}>
+                    {(item as any).notes && (
+                      <View style={styles.notesIconContainer}>
+                        <Ionicons name="document-text-outline" size={18} color={colors.textSecondary} />
+                      </View>
+                    )}
+                    <View style={[
+                      styles.openIssuesBadge,
+                      openCount === 0 && styles.openIssuesBadgeEmpty
                     ]}>
-                      {openCount}
-                    </Text>
+                      <Text style={[
+                        styles.openIssuesText,
+                        openCount === 0 && styles.openIssuesTextEmpty
+                      ]}>
+                        {openCount}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 {item.description && (
@@ -160,8 +179,9 @@ export function FacilitiesScreen() {
                     </Text>
                   </View>
                 )}
-              </Card>
-            </TouchableOpacity>
+                </Card>
+              )}
+            </Pressable>
           );
         }}
         ListEmptyComponent={
@@ -173,32 +193,11 @@ export function FacilitiesScreen() {
         }
       />
 
-      <View style={styles.footer}>
-        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <View style={{ flex: 1 }}>
-            <Button
-              title={t('facilities.createFacility')}
-              onPress={handleCreateFacility}
-            />
-          </View>
-          <TouchableOpacity
-            style={styles.joinButton}
-            onPress={() => navigation.navigate('JoinFacility' as never)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.joinButtonContent}>
-              <Image 
-                source={require('../assets/logo_small.png')} 
-                style={styles.joinButtonIcon}
-                resizeMode="contain"
-              />
-              <View style={styles.plusBadge}>
-                <Text style={styles.plusText}>+</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <MetroFAB
+        onAddPress={handleCreateFacility}
+        onLinkPress={() => navigation.navigate('JoinFacility' as never)}
+        onAddServicePress={handleAddService}
+      />
       </SafeAreaView>
     </ImageBackground>
   );
@@ -276,6 +275,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: 100,
   },
+  cardWrapper: {
+    marginBottom: spacing.md,
+  },
   facilityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -287,6 +289,13 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.semibold,
     color: colors.text,
     flex: 1,
+  },
+  facilityHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notesIconContainer: {
+    marginRight: spacing.xs,
   },
   openIssuesBadge: {
     backgroundColor: colors.statusOpen,
@@ -351,54 +360,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: spacing.xl,
-    backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  joinButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.sm,
-  },
-  joinButtonContent: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  joinButtonIcon: {
-    width: 32,
-    height: 32,
-  },
-  plusBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  plusText: {
-    color: colors.textOnPrimary,
-    fontSize: 12,
-    fontWeight: fontWeight.bold,
-    lineHeight: 14,
   },
 });
