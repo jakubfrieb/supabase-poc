@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ImageBackground } from 'react-native';
 import { useNotifications } from '../hooks/useNotifications';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,7 +20,13 @@ export function NotificationsScreen() {
   }, [markAsRead, navigation]);
 
   return (
-    <View style={styles.container}>
+    <ImageBackground 
+      source={require('../assets/background/theme_1.png')} 
+      style={styles.backgroundImage}
+      resizeMode="cover"
+      imageStyle={styles.backgroundImageStyle}
+    >
+      <View style={styles.container}>
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
@@ -48,14 +54,21 @@ export function NotificationsScreen() {
           }
         />
       )}
-    </View>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  backgroundImageStyle: {
+    opacity: 0.3,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   center: {
     flex: 1,

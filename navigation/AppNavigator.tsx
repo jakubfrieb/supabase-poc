@@ -83,7 +83,7 @@ export function AppNavigator() {
             <Stack.Screen
               name="JoinFacility"
               component={JoinFacilityScreen}
-              options={{ title: 'Připojit se k nemovitosti', presentation: 'modal' }}
+              options={{ title: 'Připojit se k existující nemovitosti', presentation: 'modal' }}
             />
             <Stack.Screen
               name="CreateFacility"

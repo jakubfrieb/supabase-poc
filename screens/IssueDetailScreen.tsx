@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, TextInput, Image, KeyboardAvoidingView, Platform, Modal, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,6 +17,12 @@ import { useTranslation } from 'react-i18next';
 import { useIssueAttachments } from '../hooks/useIssueAttachments';
 import { AttachmentsGrid } from '../components/AttachmentsGrid';
 import { useAuth } from '../contexts/AuthContext';
+import ImageViewing from 'react-native-image-viewing';
+import { PriorityBadge } from '../components/PriorityBadge';
+import { UserAvatar } from '../components/UserAvatar';
+import { useFacilityRole } from '../hooks/useFacilityRole';
+import { PriorityPickerModal } from '../components/PriorityPickerModal';
+import { IssuePriority } from '../types/database';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'IssueDetail'>;
@@ -28,12 +34,7 @@ const statusColors = {
   closed: colors.statusClosed,
 };
 
-const priorityColors = {
-  low: colors.priorityLow,
-  medium: colors.priorityMedium,
-  high: colors.priorityHigh,
-  urgent: colors.priorityUrgent,
-};
+// Priority colors are now handled by PriorityBadge component
 
 const statusTransitions: Record<IssueStatus, IssueStatus[]> = {
   open: ['in_progress', 'closed'],
@@ -56,17 +57,40 @@ export function IssueDetailScreen() {
   const [sendingMessage, setSendingMessage] = useState(false);
 
   // Image preview & delete reason modals state
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
+  const [showPriorityPicker, setShowPriorityPicker] = useState(false);
 
   const { updateIssue, deleteIssue } = useIssues(facilityId);
   const { messages, sendMessage, fetchMessages, loading: messagesLoading } = useIssueMessages(issueId);
   const { attachments, loading: attachmentsLoading, deleteAttachment } = useIssueAttachments(issueId);
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { isAdminOrOwner, loading: roleLoading } = useFacilityRole(facilityId);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Check if user can edit priority (author or admin/owner)
+  const canEditPriority = issue && user && (issue.created_by === user.id || isAdminOrOwner);
+
+  // Collect all images for preview (attachments + message attachments)
+  const allImages = React.useMemo(() => {
+    const imageList: { uri: string }[] = [];
+    // Add attachment images
+    attachments.forEach(a => {
+      if (a.content_type?.startsWith('image/')) {
+        imageList.push({ uri: a.url });
+      }
+    });
+    // Add message attachment images
+    messages.forEach(m => {
+      if (m.attachment_url) {
+        imageList.push({ uri: m.attachment_url });
+      }
+    });
+    return imageList;
+  }, [attachments, messages]);
 
   useEffect(() => {
     fetchIssue();
@@ -223,30 +247,52 @@ export function IssueDetailScreen() {
 
   if (loading || !issue) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text>Loading...</Text>
-        </View>
-      </SafeAreaView>
+      <ImageBackground 
+        source={require('../assets/background/theme_1.png')} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+        imageStyle={styles.backgroundImageStyle}
+      >
+        <SafeAreaView style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <Text>Loading...</Text>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
     );
   }
 
   const availableStatuses = statusTransitions[issue.status];
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+    <ImageBackground 
+      source={require('../assets/background/theme_1.png')} 
+      style={styles.backgroundImage}
+      resizeMode="cover"
+      imageStyle={styles.backgroundImageStyle}
+    >
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
         <ScrollView 
           ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
         >
         <Card>
           <View style={styles.headerTop}>
-            <Text style={styles.title}>{issue.title}</Text>
+            <View style={styles.titleRow}>
+              <PriorityBadge 
+                priority={issue.priority as any}
+                showText={false}
+                size="small"
+                showTooltip={!canEditPriority}
+                onPress={canEditPriority ? () => setShowPriorityPicker(true) : undefined}
+              />
+              <Text style={styles.title}>{issue.title}</Text>
+            </View>
             <TouchableOpacity
               onPress={() => setShowDeleteModal(true)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -259,20 +305,12 @@ export function IssueDetailScreen() {
               <View
                 style={[
                   styles.badge,
-                  { backgroundColor: priorityColors[issue.priority] },
-                ]}
-              >
-                <Text style={styles.badgeText}>{issue.priority}</Text>
-              </View>
-              <View
-                style={[
-                  styles.badge,
                   { backgroundColor: statusColors[issue.status] },
                 ]}
               >
                 <Text style={styles.badgeText}>{t(`issues.statusNames.${issue.status}`)}</Text>
               </View>
-          </View>
+            </View>
 
           {issue.description && (
             <View style={styles.section}>
@@ -283,6 +321,10 @@ export function IssueDetailScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>{t('issues.details')}</Text>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>{t('issues.reportedBy')}</Text>
+              <UserAvatar userId={issue.created_by} size="small" showName={true} />
+            </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>{t('issues.created')}</Text>
               <Text style={styles.detailValue}>
@@ -308,9 +350,13 @@ export function IssueDetailScreen() {
                 items={attachments.map(a => ({ id: a.id, uri: a.url, url: a.url, fileName: a.file_name, contentType: a.content_type }))}
                 onPreview={(idx) => {
                   const a = attachments[idx];
-                  if (!a) return;
-                  setPreviewUri(a.url);
-                  setShowPreview(true);
+                  if (!a || !a.content_type?.startsWith('image/')) return;
+                  // Find index in allImages
+                  const imageIndex = allImages.findIndex(img => img.uri === a.url);
+                  if (imageIndex >= 0) {
+                    setPreviewIndex(imageIndex);
+                    setShowPreview(true);
+                  }
                 }}
                 onRemove={(idx) => {
                   const a = attachments[idx];
@@ -340,7 +386,13 @@ export function IssueDetailScreen() {
                 <View key={m.id} style={[styles.messageRow, { alignItems: 'flex-start' }]}>
                   <View style={[styles.messageBubble, isMine && styles.messageBubbleMine, isMine ? { marginLeft: 15, marginRight: 0 } : { marginRight: 15, marginLeft: 0 }]}>
                     {m.attachment_url ? (
-                      <TouchableOpacity onPress={() => { setPreviewUri(m.attachment_url!); setShowPreview(true); }}>
+                      <TouchableOpacity onPress={() => {
+                        const imageIndex = allImages.findIndex(img => img.uri === m.attachment_url);
+                        if (imageIndex >= 0) {
+                          setPreviewIndex(imageIndex);
+                          setShowPreview(true);
+                        }
+                      }}>
                         <Image source={{ uri: m.attachment_url }} style={styles.messageImage} />
                       </TouchableOpacity>
                     ) : null}
@@ -460,14 +512,48 @@ export function IssueDetailScreen() {
         )}
         </ScrollView>
       </KeyboardAvoidingView>
-      {/* Image preview modal */}
-      <Modal visible={showPreview} transparent animationType="fade" onRequestClose={() => setShowPreview(false)}>
-        <View style={styles.previewOverlay}>
-          <TouchableOpacity style={styles.previewCloseArea} onPress={() => setShowPreview(false)} />
-          {previewUri ? <Image source={{ uri: previewUri }} style={styles.previewImageLarge} /> : null}
-          <Button title="Zavřít" onPress={() => setShowPreview(false)} style={styles.previewCloseButton} />
-        </View>
-      </Modal>
+      {/* Image preview modal with zoom */}
+      {allImages.length > 0 && (
+        <ImageViewing
+          images={allImages}
+          imageIndex={previewIndex ?? 0}
+          visible={showPreview && previewIndex !== null}
+          onRequestClose={() => {
+            setShowPreview(false);
+            setPreviewIndex(null);
+          }}
+          swipeToCloseEnabled={true}
+          doubleTapToZoomEnabled={true}
+        />
+      )}
+
+      {/* Priority picker modal */}
+      {issue && (
+        <PriorityPickerModal
+          visible={showPriorityPicker}
+          currentPriority={issue.priority as IssuePriority}
+          onSelect={async (priority: IssuePriority) => {
+            try {
+              setUpdating(true);
+              const updated = await updateIssue(issueId, { priority });
+              if (updated) {
+                // Update local state immediately
+                setIssue((prev) => (prev ? { ...prev, priority } : null));
+                // Close the modal
+                setShowPriorityPicker(false);
+                // Refresh the issue to ensure we have the latest data from DB
+                await fetchIssue();
+              }
+            } catch (error: any) {
+              console.error('Error updating priority:', error);
+              Alert.alert('Chyba', error?.message || 'Nepodařilo se změnit prioritu.');
+            } finally {
+              setUpdating(false);
+            }
+          }}
+          onClose={() => setShowPriorityPicker(false)}
+        />
+      )}
 
       {/* Delete reason modal */}
       <Modal visible={showDeleteModal} transparent animationType="slide" onRequestClose={() => setShowDeleteModal(false)}>
@@ -513,14 +599,21 @@ export function IssueDetailScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  backgroundImageStyle: {
+    opacity: 0.3,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   loadingContainer: {
     flex: 1,
@@ -535,16 +628,23 @@ const styles = StyleSheet.create({
   },
   headerTop: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    marginRight: spacing.sm,
   },
   title: {
     fontSize: fontSize.xxl,
     fontWeight: fontWeight.bold,
     color: colors.text,
-    marginBottom: spacing.md,
     lineHeight: 32,
+    flex: 1,
   },
   deleteIconButton: {
     padding: spacing.xs,
@@ -584,6 +684,7 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: spacing.sm,
   },
   detailLabel: {

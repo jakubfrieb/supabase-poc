@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity, Image, TextInput, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { DeleteButton } from '../components/DeleteButton';
+import { IssuePriority } from '../types/database';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'CreateIssue'>;
@@ -27,6 +29,7 @@ export function CreateIssueScreen() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<IssuePriority>('normal');
   const [loading, setLoading] = useState(false);
   const [attachments, setAttachments] = useState<{ uri: string; base64: string | null }[]>([]);
 
@@ -59,6 +62,7 @@ export function CreateIssueScreen() {
       const created = await createIssue({
         title: title.trim(),
         description: description.trim() || undefined,
+        priority: priority,
         facility_id: facilityId,
       });
       // After creating the issue, upload any attachments into issue_attachments
@@ -128,11 +132,17 @@ export function CreateIssueScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
+    <ImageBackground 
+      source={require('../assets/background/theme_1.png')} 
+      style={styles.backgroundImage}
+      resizeMode="cover"
+      imageStyle={styles.backgroundImageStyle}
+    >
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -150,6 +160,48 @@ export function CreateIssueScreen() {
               onChangeText={setTitle}
               autoCapitalize="sentences"
             />
+
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Priorita</Text>
+              <View style={styles.priorityContainer}>
+                {(['idea', 'normal', 'high', 'critical', 'urgent'] as IssuePriority[]).map((prio) => {
+                  const config = getPriorityConfig(prio);
+                  const isSelected = priority === prio;
+                  const isBubble = prio === 'normal' || prio === 'high' || prio === 'critical';
+                  const exclamationMarks = prio === 'normal' ? '!' : prio === 'high' ? '!!' : prio === 'critical' ? '!!!' : null;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={prio}
+                      style={styles.priorityOption}
+                      onPress={() => setPriority(prio)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[
+                        styles.priorityIconContainer,
+                        isSelected && { borderColor: config.color, borderWidth: 2, backgroundColor: `${config.color}20` }
+                      ]}>
+                        {isBubble ? (
+                          <View style={[styles.priorityBubble, { borderColor: config.color }]}>
+                            <Text style={[styles.priorityExclamation, { color: config.color }]}>
+                              {exclamationMarks}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Ionicons name={config.icon as any} size={28} color={config.color} />
+                        )}
+                      </View>
+                      <Text style={[
+                        styles.priorityLabel,
+                        isSelected && { color: config.color, fontWeight: fontWeight.semibold }
+                      ]}>
+                        {config.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>{t('issues.description')}</Text>
@@ -229,30 +281,33 @@ export function CreateIssueScreen() {
                       <View style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
                         <Image source={{ uri: att.uri }} style={{ width: '100%', height: '100%' }} />
                       </View>
-                      <TouchableOpacity
-                        onPress={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
-                        style={{ position: 'absolute', top: -8, right: -8, backgroundColor: '#0009', borderRadius: 12, padding: 4 }}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Ionicons name="trash" size={14} color="#fff" />
-                      </TouchableOpacity>
+                      <DeleteButton
+                        onDelete={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                        size={14}
+                      />
                     </View>
                   ))}
                 </View>
               </View>
             )}
-            {/* Priority and status removed; defaults handled by backend */}
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  backgroundImageStyle: {
+    opacity: 0.3,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   keyboardView: {
     flex: 1,
@@ -336,4 +391,75 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     opacity: 0.5,
   },
+  priorityContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+  },
+  priorityOption: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  priorityIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  priorityBubble: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  priorityExclamation: {
+    fontWeight: fontWeight.bold,
+    fontSize: 14,
+    lineHeight: 16,
+  },
+  priorityLabel: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
 });
+
+// Priority configuration matching PriorityBadge
+const getPriorityConfig = (prio: IssuePriority) => {
+  const configs: Record<IssuePriority, { color: string; icon: string; label: string }> = {
+    idea: {
+      color: '#FFD700',
+      icon: 'bulb-outline',
+      label: 'Nápad',
+    },
+    normal: {
+      color: '#81C784',
+      icon: 'chatbubble-outline',
+      label: 'Normální',
+    },
+    high: {
+      color: '#FFB74D',
+      icon: 'chatbubble-outline',
+      label: 'Vysoká',
+    },
+    critical: {
+      color: '#EF5350',
+      icon: 'chatbubble-outline',
+      label: 'Kritická',
+    },
+    urgent: {
+      color: '#C62828',
+      icon: 'ban-outline',
+      label: 'Urgentní',
+    },
+  };
+  return configs[prio];
+};

@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, TextInput, Modal, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useIssues } from '../hooks/useIssues';
-import { Facility } from '../types/database';
+import { Facility, IssuePriority } from '../types/database';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
 import QRCode from 'react-native-qrcode-svg';
 import { useTranslation } from 'react-i18next';
+import { PriorityBadge } from '../components/PriorityBadge';
+import { UserAvatar } from '../components/UserAvatar';
+import { useFacilityRole } from '../hooks/useFacilityRole';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'FacilityDetail'>;
@@ -24,12 +27,7 @@ const statusColors = {
   closed: colors.statusClosed,
 };
 
-const priorityColors = {
-  low: colors.priorityLow,
-  medium: colors.priorityMedium,
-  high: colors.priorityHigh,
-  urgent: colors.priorityUrgent,
-};
+// Priority colors are now handled by PriorityBadge component
 
 export function FacilityDetailScreen() {
   const { t } = useTranslation();
@@ -44,6 +42,7 @@ export function FacilityDetailScreen() {
   const [showInviteModal, setShowInviteModal] = useState(false);
 
   const { issues, loading, fetchIssues } = useIssues(facilityId);
+  const { role, isAdminOrOwner } = useFacilityRole(facilityId);
 
   useEffect(() => {
     fetchFacility();
@@ -143,38 +142,80 @@ export function FacilityDetailScreen() {
   const getStatusBadge = (status: string) => {
     return (
       <View style={[styles.badge, { backgroundColor: statusColors[status as keyof typeof statusColors] }]}>
-        <Text style={styles.badgeText}>{status.replace('_', ' ')}</Text>
+        <Text style={styles.badgeText}>{t(`issues.statusNames.${status}`)}</Text>
       </View>
     );
   };
 
   const getPriorityBadge = (priority: string) => {
     return (
-      <View style={[styles.badge, { backgroundColor: priorityColors[priority as keyof typeof priorityColors] }]}>
-        <Text style={styles.badgeText}>{priority}</Text>
-      </View>
+      <PriorityBadge 
+        priority={priority as any}
+        showText={true}
+        size="small"
+      />
     );
+  };
+
+  // Count open issues by priority
+  const getOpenIssuesByPriority = () => {
+    const openIssues = issues.filter(
+      issue => issue.status === 'open' || issue.status === 'in_progress'
+    );
+    
+    const priorities: IssuePriority[] = ['idea', 'normal', 'high', 'critical', 'urgent'];
+    const counts: Record<IssuePriority, number> = {
+      idea: 0,
+      normal: 0,
+      high: 0,
+      critical: 0,
+      urgent: 0,
+    };
+
+    openIssues.forEach(issue => {
+      const priority = issue.priority as IssuePriority;
+      if (priority && counts.hasOwnProperty(priority)) {
+        counts[priority]++;
+      }
+    });
+
+    return counts;
   };
 
   if (loadingFacility) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text>Loading...</Text>
-        </View>
-      </SafeAreaView>
+      <ImageBackground 
+        source={require('../assets/background/theme_1.png')} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+        imageStyle={styles.backgroundImageStyle}
+      >
+        <SafeAreaView style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <Text>Loading...</Text>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <ImageBackground 
+      source={require('../assets/background/theme_1.png')} 
+      style={styles.backgroundImage}
+      resizeMode="cover"
+      imageStyle={styles.backgroundImageStyle}
+    >
+      <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.facilityInfo}>
         <View style={styles.facilityHeader}>
           <View style={styles.facilityTitleContainer}>
             <Text style={styles.facilityName}>{facility?.name}</Text>
-            <TouchableOpacity onPress={handleShowInvite} style={styles.eyeButton}>
-              <Ionicons name="eye-outline" size={24} color={colors.primary} />
-            </TouchableOpacity>
+            {isAdminOrOwner && (
+              <TouchableOpacity onPress={handleShowInvite} style={styles.eyeButton}>
+                <Ionicons name="eye-outline" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         {facility?.description && (
@@ -194,6 +235,36 @@ export function FacilityDetailScreen() {
               : t(`profile.statuses.${(facility as any)?.subscription_status ?? 'pending'}`)}
           </Text>
         </View>
+        
+        {/* Open issues by priority */}
+        {(() => {
+          const counts = getOpenIssuesByPriority();
+          const totalOpen = Object.values(counts).reduce((sum, count) => sum + count, 0);
+          const priorities: IssuePriority[] = ['idea', 'normal', 'high', 'critical', 'urgent'];
+          const priorityItems = priorities
+            .map(priority => ({ priority, count: counts[priority] }))
+            .filter(item => item.count > 0);
+
+          if (totalOpen === 0) return null;
+
+          return (
+            <View style={styles.issuesByPriorityContainer}>
+              <Text style={styles.issuesByPriorityTitle}>Otevřené závady:</Text>
+              <View style={styles.issuesByPriorityRow}>
+                {priorityItems.map(({ priority, count }) => (
+                  <View key={priority} style={styles.priorityCountItem}>
+                    <PriorityBadge 
+                      priority={priority}
+                      showText={false}
+                      size="small"
+                    />
+                    <Text style={styles.priorityCount}>{count}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          );
+        })()}
       </View>
 
       <View style={styles.issuesHeader}>
@@ -210,80 +281,97 @@ export function FacilityDetailScreen() {
         }
         ListHeaderComponent={
           (facility as any)?.subscription_status !== 'active' ? (
-            <View style={styles.paymentCard}>
-              <Text style={styles.payTitle}>Symbolický poplatek 20 Kč/rok</Text>
-              <Text style={styles.payDesc}>
-                Poplatek je nevratný a zajišťuje bezpečné používání služby.
-              </Text>
-              <View style={styles.qrContainer}>
-                <QRCode
-                  value={JSON.stringify({
-                    facilityId,
-                    amountCZK: 20,
-                    message:
-                      'Symbolický, nevratný poplatek 20 Kč/rok, zajišťuje bezpečné používání služby.',
-                  })}
-                  size={140}
-                />
-              </View>
-              <View style={styles.voucherRow}>
-                <TextInput
-                  style={styles.voucherInput}
-                  value={voucher}
-                  onChangeText={setVoucher}
-                  placeholder="Voucher kód"
-                  autoCapitalize="characters"
-                />
-                <Button
-                  title="Uplatnit"
-                  onPress={async () => {
-                    try {
-                      if (!voucher.trim()) return;
-                      const { data: v, error: verr } = await supabase
-                        .from('vouchers')
-                        .select('months, active, expires_at')
-                        .eq('code', voucher.trim())
-                        .single();
-                      if (verr || !v) throw new Error('Neplatný voucher');
-                      if (v.active === false) throw new Error('Voucher je neaktivní');
-                      if (v.expires_at && new Date(v.expires_at) < new Date()) throw new Error('Voucher vypršel');
+            role === 'owner' ? (
+              <View style={styles.paymentCard}>
+                <Text style={styles.payTitle}>Symbolický poplatek 20 Kč/rok</Text>
+                <Text style={styles.payDesc}>
+                  Poplatek je nevratný a zajišťuje bezpečné používání služby.
+                </Text>
+                <View style={styles.qrContainer}>
+                  <QRCode
+                    value={JSON.stringify({
+                      facilityId,
+                      amountCZK: 20,
+                      message:
+                        'Symbolický, nevratný poplatek 20 Kč/rok, zajišťuje bezpečné používání služby.',
+                    })}
+                    size={140}
+                  />
+                </View>
+                <View style={styles.voucherRow}>
+                  <TextInput
+                    style={styles.voucherInput}
+                    value={voucher}
+                    onChangeText={setVoucher}
+                    placeholder="Voucher kód"
+                    autoCapitalize="characters"
+                  />
+                  <Button
+                    title="Uplatnit"
+                    onPress={async () => {
+                      try {
+                        if (!voucher.trim()) return;
+                        const { data: v, error: verr } = await supabase
+                          .from('vouchers')
+                          .select('months, active, expires_at')
+                          .eq('code', voucher.trim())
+                          .single();
+                        if (verr || !v) throw new Error('Neplatný voucher');
+                        if (v.active === false) throw new Error('Voucher je neaktivní');
+                        if (v.expires_at && new Date(v.expires_at) < new Date()) throw new Error('Voucher vypršel');
 
-                      const current = (facility as any)?.paid_until
-                        ? new Date((facility as any).paid_until)
-                        : new Date();
-                      const newPaid = new Date(current);
-                      newPaid.setMonth(newPaid.getMonth() + (v.months ?? 12));
+                        const current = (facility as any)?.paid_until
+                          ? new Date((facility as any).paid_until)
+                          : new Date();
+                        const newPaid = new Date(current);
+                        newPaid.setMonth(newPaid.getMonth() + (v.months ?? 12));
 
-                      const { data: upd, error: uerr } = await supabase
-                        .from('facilities')
-                        .update({ subscription_status: 'active', paid_until: newPaid.toISOString() })
-                        .eq('id', facilityId)
-                        .select()
-                        .single();
-                      if (uerr) throw uerr;
-                      setFacility(upd as any);
-                      setVoucher('');
-                      Alert.alert('Hotovo', 'Předplatné bylo aktivováno.');
-                    } catch (e: any) {
-                      Alert.alert('Chyba', e.message ?? 'Voucher se nepodařilo uplatnit.');
-                    }
-                  }}
-                />
+                        const { data: upd, error: uerr } = await supabase
+                          .from('facilities')
+                          .update({ subscription_status: 'active', paid_until: newPaid.toISOString() })
+                          .eq('id', facilityId)
+                          .select()
+                          .single();
+                        if (uerr) throw uerr;
+                        setFacility(upd as any);
+                        setVoucher('');
+                        Alert.alert('Hotovo', 'Předplatné bylo aktivováno.');
+                      } catch (e: any) {
+                        Alert.alert('Chyba', e.message ?? 'Voucher se nepodařilo uplatnit.');
+                      }
+                    }}
+                  />
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={styles.paymentCard}>
+                <Text style={styles.demoModeText}>Tento dům je v ukázkovém režimu</Text>
+              </View>
+            )
           ) : null
         }
         renderItem={({ item }) => (
           <TouchableOpacity onPress={() => handleIssuePress(item.id)}>
             <Card>
               <View style={styles.issueHeader}>
-                <Text style={styles.issueTitle} numberOfLines={2}>
-                  {item.title}
-                </Text>
+                <View style={styles.titleRow}>
+                  <PriorityBadge 
+                    priority={item.priority as any}
+                    showText={false}
+                    size="small"
+                    showTooltip={false}
+                  />
+                  <Text style={styles.issueTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                </View>
                 <View style={styles.badges}>
-                  {getPriorityBadge(item.priority)}
                   {getStatusBadge(item.status)}
                 </View>
+              </View>
+              <View style={styles.reportedByRow}>
+                <Text style={styles.reportedByLabel}>{t('issues.reportedBy')}</Text>
+                <UserAvatar userId={item.created_by} size="small" showName={true} />
               </View>
               {item.description && (
                 <Text style={styles.issueDescription} numberOfLines={2}>
@@ -351,14 +439,21 @@ export function FacilityDetailScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  backgroundImageStyle: {
+    opacity: 0.3,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   loadingContainer: {
     flex: 1,
@@ -447,6 +542,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.md,
   },
+  demoModeText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
+  },
   qrContainer: {
     alignItems: 'center',
     marginBottom: spacing.md,
@@ -470,13 +572,35 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   issueHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: spacing.sm,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+    marginRight: spacing.sm,
   },
   issueTitle: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.semibold,
     color: colors.text,
-    marginBottom: spacing.sm,
+    flex: 1,
+  },
+  reportedByRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  reportedByLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: fontWeight.medium,
   },
   issueDescription: {
     fontSize: fontSize.sm,
@@ -544,6 +668,34 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
+  },
+  issuesByPriorityContainer: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  issuesByPriorityTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  issuesByPriorityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    alignItems: 'center',
+  },
+  priorityCountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  priorityCount: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
   },
   modalOverlay: {
     flex: 1,

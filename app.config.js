@@ -2,8 +2,8 @@ require('dotenv').config();
 
 module.exports = {
   expo: {
-    name: "Facility Manager",
-    slug: "facility-manager",
+    name: "",
+    slug: "altrano",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/logo.png",
@@ -11,8 +11,6 @@ module.exports = {
     newArchEnabled: true,
     scheme: "myapp",
     splash: {
-      image: "./assets/splash-icon.png",
-      resizeMode: "contain",
       backgroundColor: "#FFFFFF"
     },
     ios: {
@@ -21,7 +19,7 @@ module.exports = {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: "./assets/logo_small.png",
         backgroundColor: "#FFFFFF"
       },
       package: "cz.digitalmind.altrano",

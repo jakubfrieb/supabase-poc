@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Image, TouchableOpacity, Text } from 'react-native';
+import React, { useState } from 'react';
+import { View, Image, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { DeleteButton } from './DeleteButton';
 
 type Attachment = {
   id?: string;
@@ -19,10 +20,25 @@ export function AttachmentsGrid({
   onRemove?: (index: number) => void;
   onPreview?: (index: number) => void;
 }) {
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [imageLoading, setImageLoading] = useState<Set<string>>(new Set());
+
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
       {items.map((att, idx) => {
-        const isImage = (att.contentType || att.fileName || att.uri).toLowerCase().match(/\.(png|jpg|jpeg|gif|webp)$/);
+        // Check if it's an image by contentType first, then by file extension
+        const contentType = att.contentType?.toLowerCase() || '';
+        const fileName = att.fileName?.toLowerCase() || '';
+        const uri = (att.url || att.uri || '').toLowerCase();
+        const imageUri = att.url || att.uri;
+        const itemKey = att.id || att.uri || `item-${idx}`;
+        
+        const isImageByContentType = contentType.startsWith('image/');
+        const isImageByExtension = /\.(png|jpg|jpeg|gif|webp)(\?|$)/.test(fileName) || /\.(png|jpg|jpeg|gif|webp)(\?|$)/.test(uri);
+        const isImage = isImageByContentType || isImageByExtension;
+        const hasError = imageErrors.has(itemKey);
+        const isLoading = imageLoading.has(itemKey);
+        
         return (
           <View key={`${att.id || att.uri}-${idx}`} style={{ marginRight: 8, marginBottom: 8 }}>
             <View
@@ -38,27 +54,59 @@ export function AttachmentsGrid({
                 backgroundColor: '#fafafa',
               }}
             >
-              {isImage ? (
-                <TouchableOpacity activeOpacity={0.85} onPress={() => onPreview && onPreview(idx)} style={{ width: '100%', height: '100%' }}>
-                  <Image source={{ uri: att.url || att.uri }} style={{ width: '100%', height: '100%' }} />
+              {isImage && !hasError ? (
+                <TouchableOpacity 
+                  activeOpacity={0.85} 
+                  onPress={() => onPreview && onPreview(idx)} 
+                  style={{ width: '100%', height: '100%' }}
+                >
+                  {isLoading && (
+                    <View style={{ position: 'absolute', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa' }}>
+                      <ActivityIndicator size="small" color="#6b7280" />
+                    </View>
+                  )}
+                  <Image 
+                    source={{ uri: imageUri }} 
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                    onLoadStart={() => {
+                      setImageLoading(prev => new Set(prev).add(itemKey));
+                    }}
+                    onLoadEnd={() => {
+                      setImageLoading(prev => {
+                        const next = new Set(prev);
+                        next.delete(itemKey);
+                        return next;
+                      });
+                    }}
+                    onError={() => {
+                      setImageErrors(prev => new Set(prev).add(itemKey));
+                      setImageLoading(prev => {
+                        const next = new Set(prev);
+                        next.delete(itemKey);
+                        return next;
+                      });
+                    }}
+                  />
                 </TouchableOpacity>
               ) : (
-                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="document-text-outline" size={24} color="#6b7280" />
-                  <Text numberOfLines={1} style={{ fontSize: 10, color: '#6b7280', paddingHorizontal: 4 }}>
+                <View style={{ alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+                  <Ionicons 
+                    name={isImage && hasError ? "image-outline" : "document-text-outline"} 
+                    size={24} 
+                    color="#6b7280" 
+                  />
+                  <Text numberOfLines={1} style={{ fontSize: 10, color: '#6b7280', paddingHorizontal: 4, marginTop: 4 }}>
                     {att.fileName || 'soubor'}
                   </Text>
                 </View>
               )}
             </View>
             {onRemove ? (
-              <TouchableOpacity
-                onPress={() => onRemove(idx)}
-                style={{ position: 'absolute', top: -8, right: -8, backgroundColor: '#0009', borderRadius: 12, padding: 4 }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="trash" size={14} color="#fff" />
-              </TouchableOpacity>
+              <DeleteButton
+                onDelete={() => onRemove(idx)}
+                size={14}
+              />
             ) : null}
           </View>
         );

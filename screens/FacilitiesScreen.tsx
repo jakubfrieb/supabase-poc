@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useCallback, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ImageBackground, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,6 +12,8 @@ import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '..
 import { useTranslation } from 'react-i18next';
 import { useUnreadNotificationsCount } from '../hooks/useNotifications';
 import { Ionicons } from '@expo/vector-icons';
+import { UserAvatar } from '../components/UserAvatar';
+import { supabase } from '../lib/supabase';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -21,12 +23,61 @@ export function FacilitiesScreen() {
   const { user, signOut } = useAuth();
   const { t } = useTranslation();
   const { count } = useUnreadNotificationsCount();
+  const [openIssuesCounts, setOpenIssuesCounts] = useState<Record<string, number>>({});
 
   // Refetch when the screen gains focus so newly created facilities appear immediately
   useFocusEffect(
     useCallback(() => {
       fetchFacilities();
     }, [fetchFacilities])
+  );
+
+  // Fetch open issues counts for all facilities
+  const fetchOpenIssuesCounts = useCallback(async () => {
+    if (facilities.length === 0) {
+      setOpenIssuesCounts({});
+      return;
+    }
+
+    try {
+      const facilityIds = facilities.map(f => f.id);
+      
+      const { data, error } = await supabase
+        .from('issues')
+        .select('facility_id')
+        .in('facility_id', facilityIds)
+        .in('status', ['open', 'in_progress']);
+
+      if (error) throw error;
+
+      // Count issues per facility
+      const counts: Record<string, number> = {};
+      facilityIds.forEach(id => {
+        counts[id] = 0;
+      });
+
+      data?.forEach(issue => {
+        if (issue.facility_id) {
+          counts[issue.facility_id] = (counts[issue.facility_id] || 0) + 1;
+        }
+      });
+
+      console.log('Open issues counts:', counts);
+      setOpenIssuesCounts(counts);
+    } catch (err) {
+      console.error('Error fetching open issues counts:', err);
+    }
+  }, [facilities]);
+
+  useEffect(() => {
+    fetchOpenIssuesCounts();
+  }, [fetchOpenIssuesCounts]);
+
+  // Refetch counts when screen regains focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchOpenIssuesCounts();
+    }, [fetchOpenIssuesCounts])
   );
 
   const handleCreateFacility = () => {
@@ -38,10 +89,15 @@ export function FacilitiesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <ImageBackground 
+      source={require('../assets/background/theme_1.png')} 
+      style={styles.backgroundImage}
+      resizeMode="cover"
+      imageStyle={styles.backgroundImageStyle}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{t('facilities.greeting', { name: user?.email?.split('@')[0] })}</Text>
           <Text style={styles.title}>{t('facilities.yourFacilities')}</Text>
         </View>
         <View style={styles.headerActions}>
@@ -53,8 +109,8 @@ export function FacilitiesScreen() {
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)} style={styles.avatar}>
-            <Text style={styles.avatarText}>{user?.email?.charAt(0).toUpperCase()}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)}>
+            <UserAvatar userId={user?.id || null} size="medium" showName={false} />
           </TouchableOpacity>
         </View>
       </View>
@@ -64,28 +120,50 @@ export function FacilitiesScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={fetchFacilities} />
+          <RefreshControl 
+            refreshing={loading} 
+            onRefresh={() => {
+              fetchFacilities();
+              fetchOpenIssuesCounts();
+            }} 
+          />
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleFacilityPress(item.id)}>
-            <Card>
-              <Text style={styles.facilityName}>{item.name}</Text>
-              {item.description && (
-                <Text style={styles.facilityDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-              )}
-              {item.address && (
-                <View style={styles.addressContainer}>
-                  <Text style={styles.addressIcon}>📍</Text>
-                  <Text style={styles.address} numberOfLines={1}>
-                    {item.address}
-                  </Text>
+        renderItem={({ item }) => {
+          const openCount = openIssuesCounts[item.id] ?? 0;
+          return (
+            <TouchableOpacity onPress={() => handleFacilityPress(item.id)}>
+              <Card>
+                <View style={styles.facilityHeader}>
+                  <Text style={styles.facilityName}>{item.name}</Text>
+                  <View style={[
+                    styles.openIssuesBadge,
+                    openCount === 0 && styles.openIssuesBadgeEmpty
+                  ]}>
+                    <Text style={[
+                      styles.openIssuesText,
+                      openCount === 0 && styles.openIssuesTextEmpty
+                    ]}>
+                      {openCount}
+                    </Text>
+                  </View>
                 </View>
-              )}
-            </Card>
-          </TouchableOpacity>
-        )}
+                {item.description && (
+                  <Text style={styles.facilityDescription} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                )}
+                {item.address && (
+                  <View style={styles.addressContainer}>
+                    <Text style={styles.addressIcon}>📍</Text>
+                    <Text style={styles.address} numberOfLines={1}>
+                      {item.address}
+                    </Text>
+                  </View>
+                )}
+              </Card>
+            </TouchableOpacity>
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🏢</Text>
@@ -103,23 +181,39 @@ export function FacilitiesScreen() {
               onPress={handleCreateFacility}
             />
           </View>
-          <View style={{ flex: 1 }}>
-            <Button
-              title="Připojit se"
-              variant="outline"
-              onPress={() => navigation.navigate('JoinFacility' as never)}
-            />
-          </View>
+          <TouchableOpacity
+            style={styles.joinButton}
+            onPress={() => navigation.navigate('JoinFacility' as never)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.joinButtonContent}>
+              <Image 
+                source={require('../assets/logo_small.png')} 
+                style={styles.joinButtonIcon}
+                resizeMode="contain"
+              />
+              <View style={styles.plusBadge}>
+                <Text style={styles.plusText}>+</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  backgroundImageStyle: {
+    opacity: 0.3,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
@@ -156,11 +250,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  greeting: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
   title: {
     fontSize: 28,
     fontWeight: fontWeight.bold,
@@ -187,11 +276,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: 100,
   },
+  facilityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
   facilityName: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
     color: colors.text,
-    marginBottom: 6,
+    flex: 1,
+  },
+  openIssuesBadge: {
+    backgroundColor: colors.statusOpen,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    minWidth: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  openIssuesBadgeEmpty: {
+    backgroundColor: colors.border,
+    opacity: 0.6,
+  },
+  openIssuesText: {
+    color: colors.textOnPrimary,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
+  openIssuesTextEmpty: {
+    color: colors.textSecondary,
   },
   facilityDescription: {
     fontSize: fontSize.sm,
@@ -244,5 +361,44 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  joinButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.sm,
+  },
+  joinButtonContent: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  joinButtonIcon: {
+    width: 32,
+    height: 32,
+  },
+  plusBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  plusText: {
+    color: colors.textOnPrimary,
+    fontSize: 12,
+    fontWeight: fontWeight.bold,
+    lineHeight: 14,
   },
 });

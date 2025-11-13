@@ -30,10 +30,11 @@ export const colors = {
   info: '#0288D1',           // Light blue for info
 
   // Issue Priority Colors
-  priorityLow: '#81C784',    // Light green
-  priorityMedium: '#FFB74D', // Orange
-  priorityHigh: '#EF5350',   // Red
-  priorityUrgent: '#C62828', // Dark red
+  priorityIdea: '#FFD700',    // Gold/Yellow for idea
+  priorityNormal: '#81C784',  // Green
+  priorityHigh: '#FFB74D',    // Orange
+  priorityCritical: '#EF5350', // Red
+  priorityUrgent: '#C62828',  // Dark red
 
   // Issue Status Colors
   statusOpen: '#42A5F5',     // Blue

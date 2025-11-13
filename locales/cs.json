@@ -24,7 +24,6 @@
     "loginSubtitle": "Spravujte vaše nemovitosti a hlášené závady"
   },
   "facilities": {
-    "greeting": "Ahoj, {{name}}",
     "yourFacilities": "Vaše nemovitosti",
     "noFacilities": "Zatím žádné nemovitosti",
     "noFacilitiesHint": "Vytvořte první nemovitost pro sledování závad",
@@ -60,6 +59,7 @@
     },
     "descriptionLabel": "Popis",
     "details": "Detaily",
+    "reportedBy": "Nahlášeno:",
     "created": "Vytvořeno",
     "lastUpdated": "Poslední aktualizace",
     "statusUpdated": "Stav závady byl aktualizován"

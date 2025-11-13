@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Alert, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../components/Button';
 import { colors, spacing, fontSize, fontWeight } from '../theme/colors';
@@ -24,27 +24,14 @@ export function JoinFacilityScreen() {
 
   const handleJoin = async (inviteCode: string) => {
     try {
-      // 1) Validate invite
-      const { data: invite, error: inviteErr } = await supabase
-        .from('facility_invites')
-        .select('facility_id, role, uses, max_uses, expires_at')
-        .eq('code', inviteCode.trim())
-        .single();
-      if (inviteErr || !invite) throw new Error('Neplatný kód pozvánky');
-      if (invite.expires_at && new Date(invite.expires_at) < new Date()) throw new Error('Kód vypršel');
-      if (invite.max_uses && invite.uses >= invite.max_uses) throw new Error('Kód již byl použit');
-
-      // 2) Add current user as member
-      const { error: addErr } = await supabase
-        .from('facility_members')
-        .insert([{ facility_id: invite.facility_id, role: invite.role }]);
-      if (addErr) throw addErr;
-
-      // 3) Increment usage (will require admin/owner – can be done by owner later; ignore error)
-      await supabase
-        .from('facility_invites')
-        .update({ uses: (invite.uses ?? 0) + 1 })
-        .eq('code', inviteCode.trim());
+      // Use SECURITY DEFINER function to join facility by invite code
+      // This bypasses RLS policies that would prevent the user from inserting themselves
+      const { data, error } = await supabase.rpc('join_facility_by_invite', {
+        invite_code: inviteCode.trim()
+      });
+      
+      if (error) throw error;
+      if (!data?.success) throw new Error('Nepodařilo se připojit k nemovitosti.');
 
       Alert.alert('Hotovo', 'Byli jste přidáni do nemovitosti.');
     } catch (e: any) {
@@ -53,8 +40,14 @@ export function JoinFacilityScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Připojit se k nemovitosti</Text>
+    <ImageBackground 
+      source={require('../assets/background/theme_1.png')} 
+      style={styles.backgroundImage}
+      resizeMode="cover"
+      imageStyle={styles.backgroundImageStyle}
+    >
+      <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Připojit se k existující nemovitosti</Text>
       <TextInput
         style={styles.input}
         placeholder="xxx-xxx"
@@ -83,14 +76,21 @@ export function JoinFacilityScreen() {
           </View>
         )}
       </>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+  },
+  backgroundImageStyle: {
+    opacity: 0.3,
+  },
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
     padding: spacing.xl,
     gap: spacing.md,
   },

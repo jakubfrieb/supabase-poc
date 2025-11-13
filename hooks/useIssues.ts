@@ -99,6 +99,7 @@ export function useIssues(facilityId?: string) {
 
   const updateIssue = async (id: string, updates: Partial<Issue>) => {
     try {
+      console.log('Updating issue:', id, 'with updates:', updates);
       const { data, error } = await supabase
         .from('issues')
         .update(updates)
@@ -106,7 +107,12 @@ export function useIssues(facilityId?: string) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error updating issue:', error);
+        throw error;
+      }
+      
+      console.log('Successfully updated issue:', data);
       setIssues(issues.map(i => i.id === id ? data : i));
       return data;
     } catch (err) {
