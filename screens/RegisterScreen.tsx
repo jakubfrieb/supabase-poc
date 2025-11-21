@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   Alert,
   ImageBackground,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../contexts/AuthContext';
@@ -83,8 +83,8 @@ export function RegisterScreen({ navigation }: Props) {
   };
 
   return (
-    <ImageBackground 
-      source={require('../assets/background/theme_1.png')} 
+    <ImageBackground
+      source={require('../assets/background/theme_1.png')}
       style={styles.backgroundImage}
       resizeMode="cover"
       imageStyle={styles.backgroundImageStyle}
@@ -98,70 +98,70 @@ export function RegisterScreen({ navigation }: Props) {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-          <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              <Text style={styles.icon}>🏢</Text>
+            <View style={styles.header}>
+              <View style={styles.iconContainer}>
+                <Text style={styles.icon}>🏢</Text>
+              </View>
+              <Text style={styles.title}>{t('auth.registerTitle')}</Text>
+              <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
             </View>
-            <Text style={styles.title}>{t('auth.registerTitle')}</Text>
-            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
-          </View>
 
-          <View style={styles.form}>
-            <Input
-              label={t('auth.email')}
-              placeholder={t('auth.email')}
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                setErrors({ ...errors, email: undefined });
-              }}
-              error={errors.email}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
+            <View style={styles.form}>
+              <Input
+                label={t('auth.email')}
+                placeholder={t('auth.email')}
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setErrors({ ...errors, email: undefined });
+                }}
+                error={errors.email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
 
-            <Input
-              label={t('auth.password')}
-              placeholder={t('auth.password')}
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                setErrors({ ...errors, password: undefined });
-              }}
-              error={errors.password}
-              secureTextEntry
-              autoCapitalize="none"
-            />
+              <Input
+                label={t('auth.password')}
+                placeholder={t('auth.password')}
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setErrors({ ...errors, password: undefined });
+                }}
+                error={errors.password}
+                secureTextEntry
+                autoCapitalize="none"
+              />
 
-            <Input
-              label={t('auth.confirmPassword')}
-              placeholder={t('auth.confirmPassword')}
-              value={confirmPassword}
-              onChangeText={(text) => {
-                setConfirmPassword(text);
-                setErrors({ ...errors, confirmPassword: undefined });
-              }}
-              error={errors.confirmPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
+              <Input
+                label={t('auth.confirmPassword')}
+                placeholder={t('auth.confirmPassword')}
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  setErrors({ ...errors, confirmPassword: undefined });
+                }}
+                error={errors.confirmPassword}
+                secureTextEntry
+                autoCapitalize="none"
+              />
 
-            <Button
-              title={t('auth.createAccount')}
-              onPress={handleRegister}
-              loading={loading}
-              disabled={loading}
-              style={styles.registerButton}
-            />
+              <Button
+                title={t('auth.createAccount')}
+                onPress={handleRegister}
+                loading={loading}
+                disabled={loading}
+                style={styles.registerButton}
+              />
 
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.link}>Sign In</Text>
-              </TouchableOpacity>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Máte už účet? </Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                  <Text style={styles.link}>Přihlasit se</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

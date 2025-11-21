@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
   ImageBackground,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,8 +65,8 @@ export function ForgotPasswordScreen({ navigation }: Props) {
   };
 
   return (
-    <ImageBackground 
-      source={require('../assets/background/theme_1.png')} 
+    <ImageBackground
+      source={require('../assets/background/theme_1.png')}
       style={styles.backgroundImage}
       resizeMode="cover"
       imageStyle={styles.backgroundImageStyle}
@@ -77,39 +77,39 @@ export function ForgotPasswordScreen({ navigation }: Props) {
           style={styles.keyboardView}
         >
           <View style={styles.content}>
-          <View style={styles.header}>
-            <View style={styles.iconContainer}>
-              <Text style={styles.icon}>🔑</Text>
+            <View style={styles.header}>
+              <View style={styles.iconContainer}>
+                <Text style={styles.icon}>🔑</Text>
+              </View>
+              <Text style={styles.title}>Reset Password</Text>
+              <Text style={styles.subtitle}>
+                Enter your email address and we'll send you instructions to reset your password.
+              </Text>
             </View>
-            <Text style={styles.title}>Reset Password</Text>
-            <Text style={styles.subtitle}>
-              Enter your email address and we'll send you instructions to reset your password.
-            </Text>
-          </View>
 
-          <View style={styles.form}>
-            <Input
-              label="Email"
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                setError(undefined);
-              }}
-              error={error}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
+            <View style={styles.form}>
+              <Input
+                label="Email"
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setError(undefined);
+                }}
+                error={error}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+              />
 
-            <Button
-              title="Send Reset Link"
-              onPress={handleResetPassword}
-              loading={loading}
-              disabled={loading}
-              style={styles.resetButton}
-            />
-          </View>
+              <Button
+                title="Send Reset Link"
+                onPress={handleResetPassword}
+                loading={loading}
+                disabled={loading}
+                style={styles.resetButton}
+              />
+            </View>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>

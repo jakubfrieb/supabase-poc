@@ -24,10 +24,10 @@ module.exports = {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/logo_small.png",
+        foregroundImage: "./assets/mobile-icon.jpg",
         backgroundColor: "#FFFFFF"
       },
-      icon: "./assets/logo_small.png",
+      icon: "./assets/mobile-icon.jpg",
       package: "cz.digitalmind.altrano",
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,

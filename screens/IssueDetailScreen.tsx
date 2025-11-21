@@ -557,88 +557,91 @@ export function IssueDetailScreen() {
                   );
                 })
               )}
-            </Card>
 
-            {localImage ? (
-              <View style={styles.preview}>
-                <Image source={{ uri: localImage }} style={styles.previewImage} />
-                <TouchableOpacity onPress={() => {
-                  setLocalImage(null);
-                  setLocalImageBase64(null);
-                }}>
-                  <Text style={styles.removePreview}>Odebrat</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
+              {localImage ? (
+                <View style={styles.preview}>
+                  <Image source={{ uri: localImage }} style={styles.previewImage} />
+                  <TouchableOpacity onPress={() => {
+                    setLocalImage(null);
+                    setLocalImageBase64(null);
+                  }}>
+                    <Text style={styles.removePreview}>Odebrat</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
-            {/* Only show composer if user is not a provider, or if provider has applied */}
-            {(!isProviderView || canProviderComment) && (
-              <View style={styles.composer}>
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Napište zprávu…"
-                    value={messageText}
-                    onChangeText={setMessageText}
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                  />
-                  <View style={styles.inputIcons}>
-                    <TouchableOpacity
-                      style={styles.attachButtonInline}
-                      onPress={async () => {
-                        const ok = await ensureMediaLibraryPermission();
-                        if (!ok) return;
-                        const res = await ImagePicker.launchImageLibraryAsync({
-                          allowsEditing: false,
-                          quality: 0.8,
-                          base64: true,
-                        });
-                        if (!res.canceled) {
-                          setLocalImage(res.assets[0].uri);
-                          setLocalImageBase64(res.assets[0].base64 || null);
-                        }
-                      }}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons name="image-outline" size={22} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.attachButtonInline}
-                      onPress={async () => {
-                        const ok = await ensureCameraPermission();
-                        if (!ok) return;
-                        const res = await ImagePicker.launchCameraAsync({
-                          allowsEditing: false,
-                          quality: 0.8,
-                          base64: true,
-                        });
-                        if (!res.canceled) {
-                          setLocalImage(res.assets[0].uri);
-                          setLocalImageBase64(res.assets[0].base64 || null);
-                        }
-                      }}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons name="camera-outline" size={22} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.sendButton, sendingMessage && styles.sendButtonDisabled]}
-                      onPress={handleSendMessage}
-                      disabled={sendingMessage || (!messageText.trim() && !localImage)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      {sendingMessage ? (
-                        <Ionicons name="hourglass-outline" size={20} color={colors.textOnPrimary} />
-                      ) : (
-                        <Ionicons name="paper-plane" size={20} color={colors.textOnPrimary} />
-                      )}
-                    </TouchableOpacity>
+              {/* Only show composer if user is not a provider, or if provider has applied */}
+              {(!isProviderView || canProviderComment) && (
+                <View style={styles.composer}>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Napište zprávu…"
+                      placeholderTextColor={colors.textSecondary}
+                      value={messageText}
+                      onChangeText={setMessageText}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                    />
+                    <View style={styles.inputIcons}>
+                      <TouchableOpacity
+                        style={styles.attachButtonInline}
+                        onPress={async () => {
+                          const ok = await ensureMediaLibraryPermission();
+                          if (!ok) return;
+                          const res = await ImagePicker.launchImageLibraryAsync({
+                            allowsEditing: false,
+                            quality: 0.8,
+                            base64: true,
+                          });
+                          if (!res.canceled) {
+                            setLocalImage(res.assets[0].uri);
+                            setLocalImageBase64(res.assets[0].base64 || null);
+                          }
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="image-outline" size={22} color={colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.attachButtonInline}
+                        onPress={async () => {
+                          const ok = await ensureCameraPermission();
+                          if (!ok) return;
+                          const res = await ImagePicker.launchCameraAsync({
+                            allowsEditing: false,
+                            quality: 0.8,
+                            base64: true,
+                          });
+                          if (!res.canceled) {
+                            setLocalImage(res.assets[0].uri);
+                            setLocalImageBase64(res.assets[0].base64 || null);
+                          }
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="camera-outline" size={22} color={colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.sendButton, sendingMessage && styles.sendButtonDisabled]}
+                        onPress={handleSendMessage}
+                        disabled={sendingMessage || (!messageText.trim() && !localImage)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        {sendingMessage ? (
+                          <Ionicons name="hourglass-outline" size={20} color={colors.textOnPrimary} />
+                        ) : (
+                          <Ionicons name="paper-plane" size={20} color={colors.textOnPrimary} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
-            )}
+              )}
+            </Card>
+
+
 
             {/* Status buttons removed - moved to header dropdown */}
 
@@ -1248,15 +1251,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   composer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
+    marginTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    padding: spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? 30 : spacing.md,
+    paddingTop: spacing.md,
   },
   inputContainer: {
     position: 'relative',
@@ -1327,17 +1325,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   preview: {
-    position: 'absolute',
-    bottom: 80,
-    left: spacing.md,
+    marginTop: spacing.md,
     backgroundColor: colors.surface,
     padding: 8,
     borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignSelf: 'flex-start',
   },
   previewImage: {
     width: 80,
