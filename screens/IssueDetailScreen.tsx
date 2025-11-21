@@ -23,6 +23,13 @@ import { UserAvatar } from '../components/UserAvatar';
 import { useFacilityRole } from '../hooks/useFacilityRole';
 import { PriorityPickerModal } from '../components/PriorityPickerModal';
 import { IssuePriority } from '../types/database';
+import { useServiceRequests } from '../hooks/useServiceRequests';
+import { useAppointments } from '../hooks/useAppointments';
+import { useServiceProvider } from '../hooks/useServiceProvider';
+import { useServiceRegistrations } from '../hooks/useServiceRegistrations';
+import { useServiceApplications } from '../hooks/useServiceApplications';
+import { WorkflowStepper } from '../components/WorkflowStepper';
+import { ServiceProviderCard } from '../components/ServiceProviderCard';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'IssueDetail'>;
@@ -62,6 +69,11 @@ export function IssueDetailScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
+  const [showApplicationModal, setShowApplicationModal] = useState(false);
+  const [applicationComment, setApplicationComment] = useState('');
+  const [showCancelProviderModal, setShowCancelProviderModal] = useState(false);
+  const [cancelProviderReason, setCancelProviderReason] = useState('');
+  const [cancellingProvider, setCancellingProvider] = useState(false);
 
   const { updateIssue, deleteIssue } = useIssues(facilityId);
   const { messages, sendMessage, fetchMessages, loading: messagesLoading } = useIssueMessages(issueId);
@@ -69,10 +81,42 @@ export function IssueDetailScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { isAdminOrOwner, loading: roleLoading } = useFacilityRole(facilityId);
+  const { requests, loading: requestsLoading, refetch: refetchRequests } = useServiceRequests(issueId);
+  const { appointments, loading: appointmentsLoading } = useAppointments(issueId);
+  const { provider: assignedProvider } = useServiceProvider(issue?.assigned_provider_id || undefined);
+  const { provider: currentProvider } = useServiceProvider();
+  const { registrations } = useServiceRegistrations();
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Get open request for provider application
+  const openRequest = requests.find(r => r.status === 'open');
+  const { applications, createApplication, loading: applicationsLoading, refetch: refetchApplications } = useServiceApplications(openRequest?.id || '');
+
+  // Check if current provider has already applied to this request
+  const hasApplied = currentProvider && openRequest && user && applications.some(app => app.provider_id === user.id);
+
+  // Refetch applications when openRequest changes
+  useEffect(() => {
+    if (openRequest?.id) {
+      refetchApplications();
+    }
+  }, [openRequest?.id, refetchApplications]);
 
   // Check if user can edit priority (author or admin/owner)
   const canEditPriority = issue && user && (issue.created_by === user.id || isAdminOrOwner);
+  
+  // Check if current user is a provider (not admin/owner)
+  const isProviderView = currentProvider && !isAdminOrOwner;
+  
+  // Provider can comment only if they have applied
+  const canProviderComment = isProviderView && hasApplied;
+
+  // Check if provider selection was cancelled (by checking messages)
+  const isProviderSelectionCancelled = React.useMemo(() => {
+    return messages.some(m => 
+      m.content && m.content.includes('[Zrušeno výběr dodavatele]')
+    );
+  }, [messages]);
 
   // Collect all images for preview (attachments + message attachments)
   const allImages = React.useMemo(() => {
@@ -107,15 +151,38 @@ export function IssueDetailScreen() {
 
   const fetchIssue = async () => {
     try {
-      const { data, error } = await supabase
+      // First try normal access
+      let { data, error } = await supabase
         .from('issues')
         .select('*')
         .eq('id', issueId)
         .single();
 
+      // If that fails (e.g., due to RLS for providers), try RPC function
+      // PGRST116 = no rows returned, 42501 = insufficient privilege
+      if (error && (error.code === 'PGRST116' || error.code === 'PGRST301' || error.code === '42501')) {
+        console.log('Normal access failed, trying RPC function for provider access');
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_issue_for_provider', { issue_uuid: issueId });
+
+        if (rpcError) {
+          console.error('RPC error:', rpcError);
+          throw rpcError;
+        }
+        
+        if (rpcData && rpcData.length > 0) {
+          data = rpcData[0];
+          error = null;
+        } else {
+          console.log('RPC returned no data');
+          throw new Error('Issue not found or access denied');
+        }
+      }
+
       if (error) throw error;
       setIssue(data);
     } catch (error) {
+      console.error('Error fetching issue:', error);
       Alert.alert('Error', 'Failed to load issue');
       navigation.goBack();
     } finally {
@@ -160,6 +227,69 @@ export function IssueDetailScreen() {
         },
       ]
     );
+  };
+
+  const handleCancelProviderSelection = async () => {
+    if (!cancelProviderReason.trim()) {
+      Alert.alert('Chyba', 'Prosím uveďte odůvodnění zrušení výběru dodavatele.');
+      return;
+    }
+
+    try {
+      setCancellingProvider(true);
+      
+      // Send message with cancellation reason
+      await sendMessage(
+        `[Zrušeno výběr dodavatele] ${cancelProviderReason.trim()}`,
+        null
+      );
+
+      // Close all open requests for this issue
+      const openRequests = requests.filter(r => r.status === 'open');
+      if (openRequests.length > 0) {
+        const requestIds = openRequests.map(r => r.id);
+        const { error: closeError } = await supabase
+          .from('issue_service_requests')
+          .update({ status: 'closed' })
+          .in('id', requestIds);
+        
+        if (closeError) {
+          console.error('Error closing requests:', closeError);
+          throw closeError;
+        }
+      }
+
+      // Update issue - remove assigned provider and reset status
+      await updateIssue(issueId, {
+        assigned_provider_id: null,
+        selected_appointment_id: null,
+        status: 'open',
+      });
+
+      // Update local state
+      setIssue((prev) => 
+        prev ? { 
+          ...prev, 
+          assigned_provider_id: null, 
+          selected_appointment_id: null,
+          status: 'open' 
+        } : null
+      );
+
+      // Refresh requests to reflect closed status
+      await refetchRequests();
+
+      // Close modal and reset form
+      setShowCancelProviderModal(false);
+      setCancelProviderReason('');
+      
+      Alert.alert('Hotovo', 'Výběr dodavatele byl zrušen.');
+    } catch (error: any) {
+      console.error('Error cancelling provider selection:', error);
+      Alert.alert('Chyba', error.message || 'Nepodařilo se zrušit výběr dodavatele.');
+    } finally {
+      setCancellingProvider(false);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -375,7 +505,7 @@ export function IssueDetailScreen() {
         </Card>
 
         {/* Messages */}
-        <Card>
+        <Card style={styles.cardSpacing}>
           <Text style={styles.sectionLabel}>Komunikace</Text>
           {messagesLoading ? (
             <View style={styles.messagesLoading}>
@@ -430,7 +560,9 @@ export function IssueDetailScreen() {
           </View>
         ) : null}
 
-        <View style={styles.composer}>
+        {/* Only show composer if user is not a provider, or if provider has applied */}
+        {(!isProviderView || canProviderComment) && (
+          <View style={styles.composer}>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -495,8 +627,10 @@ export function IssueDetailScreen() {
             </View>
           </View>
         </View>
+        )}
         
-        {availableStatuses.length > 0 && (
+        {/* Only show status change section for admins/owners, not for providers */}
+        {!isProviderView && availableStatuses.length > 0 && (
           <View style={styles.statusSection}>
             <Text style={styles.actionsLabel}>{t('issues.changeStatus')}</Text>
             <View style={styles.statusButtons}>
@@ -515,6 +649,233 @@ export function IssueDetailScreen() {
               ))}
             </View>
           </View>
+        )}
+
+        {/* Service Provider Section */}
+        {issue && (
+          <Card style={styles.cardSpacing}>
+            {/* Only show title and WorkflowStepper for admins/owners, not for providers */}
+            {!isProviderView && !isProviderSelectionCancelled && (
+              <>
+                <Text style={styles.sectionLabel}>Dodavatel a termín</Text>
+                <WorkflowStepper
+                  currentStep={
+                    issue.status === 'resolved' || issue.status === 'closed' ? 'completed' :
+                    issue.selected_appointment_id ? 'repair' :
+                    issue.assigned_provider_id ? 'appointment' :
+                    requests.length > 0 ? 'selection' : 'request'
+                  }
+                />
+              </>
+            )}
+            
+            {!issue.assigned_provider_id && isAdminOrOwner && !isProviderSelectionCancelled && (
+              <>
+                {requests.length === 0 && (
+                  <Button
+                    title="Poptat dodavatele"
+                    onPress={() => navigation.navigate('ServiceRequest', { issueId })}
+                    style={styles.button}
+                  />
+                )}
+                
+                {requests.length > 0 && (
+                  <View style={styles.requestInfo}>
+                    {(() => {
+                      const openRequests = requests.filter(r => r.status === 'open');
+                      const closedRequests = requests.filter(r => r.status === 'closed');
+                      const requestToShow = openRequests[0] || closedRequests[0];
+                      
+                      // Get unique service names from open requests
+                      const serviceNames = openRequests
+                        .map(r => (r as any).services?.name)
+                        .filter(Boolean)
+                        .filter((name, index, self) => self.indexOf(name) === index); // Remove duplicates
+                      
+                      return (
+                        <>
+                          {openRequests.length > 0 && (
+                            <View style={styles.servicesList}>
+                              <Text style={styles.requestInfoLabel}>Poptávané služby:</Text>
+                              <View style={styles.servicesTags}>
+                                {serviceNames.map((serviceName, index) => (
+                                  <View key={index} style={styles.serviceTag}>
+                                    <Text style={styles.serviceTagText}>{serviceName}</Text>
+                                  </View>
+                                ))}
+                              </View>
+                            </View>
+                          )}
+                          {closedRequests.length > 0 && openRequests.length === 0 && (
+                            <Text style={styles.requestInfoText}>
+                              Poptávka byla uzavřena. Zobrazte přihlášky pro pokračování.
+                            </Text>
+                          )}
+                          {requestToShow && (
+                            <Button
+                              title={openRequests.length > 0 ? "Zobrazit přihlášky" : "Pokračovat s výběrem"}
+                              onPress={() => {
+                                navigation.navigate('ServiceApplications', {
+                                  requestId: requestToShow.id,
+                                  issueId,
+                                });
+                              }}
+                              variant="outline"
+                              style={styles.button}
+                            />
+                          )}
+                          <Button
+                            title="Přidat další službu"
+                            onPress={() => navigation.navigate('ServiceRequest', { issueId })}
+                            variant="outline"
+                            style={styles.button}
+                          />
+                          <Button
+                            title="Zrušit výběr dodavatele"
+                            onPress={() => setShowCancelProviderModal(true)}
+                            variant="outline"
+                            style={styles.button}
+                          />
+                        </>
+                      );
+                    })()}
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Only show assigned provider section if:
+                1. User is admin/owner (not provider view), OR
+                2. Provider is viewing and they are the assigned provider (for this issue) */}
+            {issue.assigned_provider_id && assignedProvider && (
+              (!isProviderView || (isProviderView && issue.assigned_provider_id === user?.id)) && (
+                <View style={styles.providerSection}>
+                  <ServiceProviderCard
+                    provider={assignedProvider}
+                    showSelectButton={false}
+                    showContactButton={true}
+                  />
+                  {!issue.selected_appointment_id && issue.assigned_provider_id === user?.id && (
+                    <Button
+                      title="Navrhnout termín"
+                      onPress={() => navigation.navigate('AppointmentSelection', {
+                        issueId,
+                        providerId: issue.assigned_provider_id!,
+                      })}
+                      style={styles.button}
+                    />
+                  )}
+                  {isAdminOrOwner && (
+                    <Button
+                      title="Zrušit výběr dodavatele"
+                      onPress={() => setShowCancelProviderModal(true)}
+                      variant="outline"
+                      style={styles.button}
+                    />
+                  )}
+                </View>
+              )
+            )}
+
+            {/* Show message if provider selection was cancelled */}
+            {isProviderSelectionCancelled && !issue.assigned_provider_id && isAdminOrOwner && (
+              <View style={styles.cancelledInfo}>
+                <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+                <Text style={styles.cancelledInfoText}>
+                  Výběr dodavatele byl zrušen. Pro tuto závadu již není možné znovu vybrat dodavatele.
+                </Text>
+              </View>
+            )}
+
+            {/* Provider Application Section */}
+            {currentProvider && openRequest && !issue.assigned_provider_id && (
+              <View style={styles.providerApplicationSection}>
+                {(openRequest as any).services && (
+                  <View style={styles.requestInfoCard}>
+                    <View style={styles.requestInfoRow}>
+                      <Ionicons name="construct-outline" size={20} color={colors.primary} />
+                      <Text style={styles.requestServiceName}>
+                        {(openRequest as any).services.name}
+                      </Text>
+                    </View>
+                    {(() => {
+                      const hasActiveService = registrations.some(
+                        reg => reg.service_id === openRequest.service_id &&
+                        reg.status === 'active' &&
+                        (!reg.paid_until || new Date(reg.paid_until) > new Date())
+                      );
+                      
+                      if (!hasActiveService) {
+                        return (
+                          <View style={styles.warningBox}>
+                            <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                            <Text style={styles.warningText}>
+                              Nemáte aktivní registraci pro tuto službu. Zaregistrujte se nejprve v sekci "Moje služby".
+                            </Text>
+                          </View>
+                        );
+                      }
+
+                      if (hasApplied) {
+                        return (
+                          <View style={styles.appliedBox}>
+                            <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
+                            <Text style={styles.appliedText}>
+                              Již jste se k této poptávce přihlásili. Čekáte na rozhodnutí.
+                            </Text>
+                          </View>
+                        );
+                      }
+
+                      return (
+                        <>
+                          <Button
+                            title="Přihlásit se k poptávce"
+                            onPress={() => {
+                              setShowApplicationModal(true);
+                            }}
+                            loading={applicationsLoading}
+                            style={styles.button}
+                          />
+                        </>
+                      );
+                    })()}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {appointments.length > 0 && (
+              <View style={styles.appointmentsSection}>
+                <Text style={styles.sectionLabel}>Termíny</Text>
+                {appointments.slice(0, 3).map((appointment) => (
+                  <TouchableOpacity
+                    key={appointment.id}
+                    onPress={() => navigation.navigate('AppointmentSelection', {
+                      issueId,
+                      providerId: appointment.provider_id,
+                    })}
+                  >
+                    <Text style={styles.appointmentText}>
+                      {appointment.proposed_date} {appointment.proposed_time}
+                      {appointment.status === 'confirmed' && ' ✓'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {appointments.length > 3 && (
+                  <Button
+                    title="Zobrazit všechny termíny"
+                    onPress={() => navigation.navigate('AppointmentSelection', {
+                      issueId,
+                      providerId: issue.assigned_provider_id || undefined,
+                    })}
+                    variant="outline"
+                    style={styles.button}
+                  />
+                )}
+              </View>
+            )}
+          </Card>
         )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -561,6 +922,62 @@ export function IssueDetailScreen() {
         />
       )}
 
+      {/* Application modal */}
+      <Modal visible={showApplicationModal} transparent animationType="slide" onRequestClose={() => setShowApplicationModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Přihláška k poptávce</Text>
+              <TouchableOpacity onPress={() => {
+                setShowApplicationModal(false);
+                setApplicationComment('');
+              }}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalDescription}>
+              Chcete přidat komentář k vaší přihlášce? (volitelné)
+            </Text>
+            <TextInput
+              style={styles.inputReason}
+              placeholder="Komentář k přihlášce..."
+              value={applicationComment}
+              onChangeText={setApplicationComment}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtons}>
+              <Button
+                title="Přihlásit"
+                onPress={async () => {
+                  if (!openRequest) return;
+                  try {
+                    await createApplication({
+                      request_id: openRequest.id,
+                      message: applicationComment.trim() || undefined,
+                    });
+                    setShowApplicationModal(false);
+                    setApplicationComment('');
+                    Alert.alert(
+                      'Hotovo',
+                      'Vaše přihláška byla úspěšně odeslána!',
+                      [{ text: 'OK' }]
+                    );
+                    refetchApplications();
+                  } catch (error: any) {
+                    Alert.alert('Chyba', error.message || 'Nepodařilo se přihlásit k poptávce.');
+                  }
+                }}
+                style={styles.modalButton}
+                loading={applicationsLoading}
+                disabled={applicationsLoading}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Delete reason modal */}
       <Modal visible={showDeleteModal} transparent animationType="slide" onRequestClose={() => setShowDeleteModal(false)}>
         <View style={styles.modalOverlay}>
@@ -604,6 +1021,48 @@ export function IssueDetailScreen() {
                   }
                 }}
                 style={styles.modalButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cancel provider selection modal */}
+      <Modal visible={showCancelProviderModal} transparent animationType="slide" onRequestClose={() => {
+        setShowCancelProviderModal(false);
+        setCancelProviderReason('');
+      }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Zrušit výběr dodavatele</Text>
+              <TouchableOpacity onPress={() => {
+                setShowCancelProviderModal(false);
+                setCancelProviderReason('');
+              }}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalDescription}>
+              Uveďte prosím odůvodnění zrušení výběru dodavatele. Odůvodnění se uloží do komunikace a pro tuto závadu již nebude možné znovu vybrat dodavatele.
+            </Text>
+            <TextInput
+              style={styles.inputReason}
+              placeholder="Odůvodnění zrušení výběru..."
+              value={cancelProviderReason}
+              onChangeText={setCancelProviderReason}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalButtons}>
+              <Button
+                title="Zrušit výběr"
+                variant="danger"
+                onPress={handleCancelProviderSelection}
+                style={styles.modalButton}
+                loading={cancellingProvider}
+                disabled={cancellingProvider || !cancelProviderReason.trim()}
               />
             </View>
           </View>
@@ -848,7 +1307,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statusSection: {
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
+  },
+  cardSpacing: {
+    marginTop: spacing.md,
   },
   preview: {
     marginTop: spacing.sm,
@@ -950,6 +1412,130 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  button: {
+    marginTop: spacing.md,
+  },
+  requestInfo: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.backgroundDark,
+    borderRadius: borderRadius.md,
+  },
+  requestInfoText: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  requestInfoLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  servicesList: {
+    marginBottom: spacing.md,
+  },
+  servicesTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  serviceTag: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.primary + '20',
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+  },
+  serviceTagText: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: fontWeight.medium,
+  },
+  providerSection: {
+    marginTop: spacing.md,
+  },
+  providerApplicationSection: {
+    marginTop: spacing.md,
+  },
+  requestInfoCard: {
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.backgroundDark,
+    borderRadius: borderRadius.md,
+  },
+  requestInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  requestServiceName: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginLeft: spacing.sm,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    backgroundColor: colors.warning + '20',
+    borderRadius: borderRadius.sm,
+    marginTop: spacing.sm,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.warning,
+    marginLeft: spacing.sm,
+  },
+  appliedBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    backgroundColor: colors.success + '20',
+    borderRadius: borderRadius.sm,
+    marginTop: spacing.sm,
+  },
+  appliedText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.success,
+    marginLeft: spacing.sm,
+  },
+  appointmentsSection: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  appointmentText: {
+    fontSize: fontSize.md,
+    color: colors.text,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.backgroundDark,
+    borderRadius: borderRadius.sm,
+  },
+  cancelButton: {
+    borderColor: colors.error,
+  },
+  cancelledInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    backgroundColor: colors.backgroundDark,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  cancelledInfoText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });
 

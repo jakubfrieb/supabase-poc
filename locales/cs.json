@@ -7,7 +7,9 @@
     "save": "Uložit",
     "ok": "OK",
     "or": "NEBO",
-    "success": "Úspěch"
+    "success": "Úspěch",
+    "andMore": "a dalších {{count}}",
+    "dashboard": "Přehled"
   },
   "auth": {
     "loginTitle": "Přihlášení",
@@ -83,6 +85,111 @@
     "deleteFacilityTitle": "Smazat nemovitost",
     "deleteFacilityMessage": "Tato operace je nevratná. Budou smazána všechna data nemovitosti včetně závad, zpráv a příloh. Všichni uživatelé a dodavatelé budou odpojeni.",
     "deleteConfirmationLabel": "Pro potvrzení napište: {{word}}"
+  },
+  "services": {
+    "title": "Služby",
+    "registration": "Registrace služeb",
+    "myServices": "Moje služby",
+    "catalog": "Katalog služeb",
+    "selectServices": "Vyberte služby, které chcete nabízet",
+    "totalPrice": "Celková cena",
+    "perYear": "za rok",
+    "activateWithVoucher": "Aktivovat voucherem",
+    "payByTransfer": "Zaplatit bankovním převodem",
+    "enterVoucher": "Zadejte kód voucheru",
+    "voucherPlaceholder": "ABC123",
+    "activate": "Aktivovat",
+    "voucherSuccess": "Voucher byl úspěšně aktivován! Vaše služby jsou aktivní na 3 měsíce.",
+    "voucherError": "Neplatný nebo již použitý voucher",
+    "status": {
+      "active": "Aktivní",
+      "pending": "Čeká na platbu",
+      "expired": "Vypršela"
+    },
+    "validUntil": "Platná do",
+    "addService": "Přidat další službu",
+    "paymentInstructions": "Platební instrukce",
+    "paymentReference": "Variabilní symbol",
+    "amount": "Částka",
+    "accountNumber": "Číslo účtu"
+  },
+  "serviceProvider": {
+    "title": "Dodavatel služeb",
+    "profile": "Profil dodavatele",
+    "billingInfo": "Fakturační údaje",
+    "companyName": "Název firmy",
+    "ico": "IČO",
+    "dic": "DIČ",
+    "address": "Adresa",
+    "phone": "Telefon",
+    "billingEmail": "Fakturační email",
+    "registerAsProvider": "Registrovat jako dodavatel",
+    "registrationSuccess": "Registrace dokončena! Nyní můžete aktivovat služby."
+  },
+  "serviceRequest": {
+    "title": "Poptávka dodavatele",
+    "create": "Poptat dodavatele",
+    "selectService": "Vyberte typ služby",
+    "requestCreated": "Poptávka vytvořena! Dodavatelé budou notifikováni.",
+    "applications": "Přihlášky dodavatelů",
+    "noApplications": "Zatím žádné přihlášky",
+    "applicationCount": "{{count}} přihláška",
+    "applicationCount_plural": "{{count}} přihlášky",
+    "viewApplications": "Zobrazit přihlášky",
+    "applyForJob": "Přihlásit se k zakázce",
+    "applicationSent": "Přihláška odeslána!",
+    "message": "Zpráva (volitelné)",
+    "messagePlaceholder": "Zde můžete napsat zprávu správci...",
+    "openRequests": "Otevřené poptávky"
+  },
+  "serviceApplication": {
+    "title": "Přihlášky",
+    "selectProvider": "Vybrat dodavatele",
+    "rejectProvider": "Zamítnout",
+    "providerSelected": "Dodavatel vybrán!",
+    "providerRejected": "Přihláška zamítnuta",
+    "confirmSelect": "Opravdu chcete vybrat tohoto dodavatele?",
+    "confirmReject": "Opravdu chcete zamítnout tuto přihlášku?",
+    "contact": "Kontaktovat",
+    "status": {
+      "pending": "Čeká na výběr",
+      "selected": "Vybrán",
+      "rejected": "Zamítnut"
+    }
+  },
+  "appointment": {
+    "title": "Termíny",
+    "propose": "Navrhnout termín",
+    "select": "Vybrat termín",
+    "confirm": "Potvrdit termín",
+    "reject": "Zamítnout",
+    "complete": "Označit jako dokončeno",
+    "proposedBy": "Navrhl/a",
+    "confirmedBy": "Potvrdil/a",
+    "selectDate": "Vyberte datum",
+    "selectTime": "Vyberte čas",
+    "notes": "Poznámka (volitelné)",
+    "notesPlaceholder": "Např. 'Potřebuji přístup do sklepa'",
+    "proposalSent": "Návrh termínu odeslán!",
+    "confirmed": "Termín potvrzen!",
+    "rejected": "Termín zamítnut",
+    "waitingForConfirmation": "Čeká na potvrzení",
+    "waitingForReporter": "Čeká na potvrzení zadavatele",
+    "canConfirm": "Můžete potvrdit",
+    "status": {
+      "proposed": "Navrženo",
+      "confirmed": "Potvrzeno",
+      "rejected": "Zamítnuto",
+      "completed": "Dokončeno"
+    },
+    "confirmDialog": "Opravdu chcete potvrdit tento termín?",
+    "rejectDialog": "Opravdu chcete zamítnout tento termín?"
+  },
+  "workflow": {
+    "request": "Poptávka",
+    "selection": "Výběr dodavatele",
+    "appointment": "Termín",
+    "repair": "Oprava",
+    "completed": "Hotovo"
   }
 }
-

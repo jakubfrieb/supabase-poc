@@ -52,6 +52,8 @@ export function useIssues(facilityId?: string) {
     status?: IssueStatus;
     priority?: IssuePriority;
     facility_id: string;
+    requires_cooperation?: boolean;
+    cooperation_user_id?: string;
   }) => {
     try {
       if (!user) throw new Error('User not authenticated');

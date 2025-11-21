@@ -30,6 +30,7 @@ export function CreateIssueScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<IssuePriority>('normal');
+  const [requiresCooperation, setRequiresCooperation] = useState(false);
   const [loading, setLoading] = useState(false);
   const [attachments, setAttachments] = useState<{ uri: string; base64: string | null }[]>([]);
   const [isDescriptionFocused, setIsDescriptionFocused] = useState(false);
@@ -60,11 +61,14 @@ export function CreateIssueScreen() {
 
     try {
       setLoading(true);
+      const { user } = await supabase.auth.getUser();
       const created = await createIssue({
         title: title.trim(),
         description: description.trim() || undefined,
         priority: priority,
         facility_id: facilityId,
+        requires_cooperation: requiresCooperation,
+        cooperation_user_id: requiresCooperation && user.data.user ? user.data.user.id : undefined,
       });
       // After creating the issue, upload any attachments into issue_attachments
       if (created?.id && attachments.length > 0) {
@@ -279,6 +283,27 @@ export function CreateIssueScreen() {
                 </View>
               </View>
             </View>
+
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setRequiresCooperation(!requiresCooperation)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, requiresCooperation && styles.checkboxChecked]}>
+                  {requiresCooperation && (
+                    <Ionicons name="checkmark" size={18} color={colors.textOnPrimary} />
+                  )}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>Nutná moje součinnost při opravě</Text>
+                  <Text style={styles.checkboxHint}>
+                    (např. přístup do bytu, přítomnost při opravě)
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
             {attachments.length > 0 && (
               <View style={{ marginTop: spacing.md }}>
                 <Text style={styles.sectionLabel}>{t('issues.attachments')}</Text>
@@ -442,6 +467,40 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: spacing.sm,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  checkboxLabelContainer: {
+    flex: 1,
+  },
+  checkboxLabel: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  checkboxHint: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
 });
 

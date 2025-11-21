@@ -1,62 +1,26 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Platform, Linking } from 'react-native';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppNavigator } from './navigation/AppNavigator';
-import { supabase } from './lib/supabase';
+import { createSessionFromUrl } from './lib/deepLinking';
 import './lib/i18n';
 
 export default function App() {
+  // Handle deep links for OAuth callbacks and magic links
+  const url = Linking.useURL();
+  
   useEffect(() => {
-    // Handle deep links for OAuth callbacks
-    if (Platform.OS !== 'web') {
-      const handleDeepLink = async (url: string) => {
-        if (url.includes('auth/callback')) {
-          // Parse the callback URL
-          const hashMatch = url.match(/#(.+)/);
-          const queryMatch = url.match(/\?(.+)/);
-          
-          if (hashMatch) {
-            // Handle hash-based tokens (implicit flow)
-            const params = new URLSearchParams(hashMatch[1]);
-            const access_token = params.get('access_token');
-            const refresh_token = params.get('refresh_token');
-            
-            if (access_token && refresh_token) {
-              await supabase.auth.setSession({
-                access_token,
-                refresh_token,
-              });
-            }
-          } else if (queryMatch) {
-            // Handle query-based code (authorization code flow)
-            const params = new URLSearchParams(queryMatch[1]);
-            const code = params.get('code');
-            
-            if (code) {
-              await supabase.auth.exchangeCodeForSession(code);
-            }
-          }
-        }
-      };
-
-      // Handle initial URL if app was opened via deep link
-      Linking.getInitialURL().then((url) => {
-        if (url) {
-          handleDeepLink(url);
-        }
+    if (Platform.OS === 'web' || !url) return;
+    
+    // Check if it's an auth callback
+    if (url.includes('access_token') || url.includes('code=') || url.includes('auth')) {
+      createSessionFromUrl(url).catch((error) => {
+        console.error('Error creating session from deep link:', error);
       });
-
-      // Listen for deep links while app is running
-      const subscription = Linking.addEventListener('url', (event) => {
-        handleDeepLink(event.url);
-      });
-
-      return () => {
-        subscription.remove();
-      };
     }
-  }, []);
+  }, [url]);
 
   return (
     <AuthProvider>

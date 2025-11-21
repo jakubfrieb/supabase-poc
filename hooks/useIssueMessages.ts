@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useServiceProvider } from './useServiceProvider';
 
 export interface IssueMessage {
   id: string;
@@ -13,20 +14,47 @@ export interface IssueMessage {
 
 export function useIssueMessages(issueId: string) {
   const { user } = useAuth();
+  const { provider } = useServiceProvider();
   const [messages, setMessages] = useState<IssueMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const recentlySentMessageIdsRef = useRef<Set<string>>(new Set());
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    // First try normal access
+    let { data, error } = await supabase
       .from('issue_messages')
       .select('*')
       .eq('issue_id', issueId)
       .order('created_at', { ascending: true });
-    if (!error) setMessages(data ?? []);
+
+    // If that fails (e.g., due to RLS for providers), try RPC function
+    // PGRST116 = no rows returned, 42501 = insufficient privilege
+    // Also try RPC if user is a provider and got empty result (RLS might return empty instead of error)
+    const shouldTryRPC = error && (error.code === 'PGRST116' || error.code === 'PGRST301' || error.code === '42501') ||
+                         (provider && (!data || data.length === 0) && !error);
+
+    if (shouldTryRPC) {
+      console.log('Trying RPC function for provider access to messages');
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_issue_messages_for_provider', { issue_uuid: issueId });
+
+      if (rpcError) {
+        console.error('RPC error fetching messages:', rpcError);
+        // If RPC also fails, use empty array or original data if available
+        setMessages(data ?? []);
+      } else {
+        // Use RPC data if available, otherwise use original data
+        setMessages(rpcData && rpcData.length > 0 ? rpcData : (data ?? []));
+      }
+    } else if (error) {
+      console.error('Error fetching issue messages:', error);
+      setMessages([]);
+    } else {
+      setMessages(data ?? []);
+    }
     setLoading(false);
-  }, [issueId]);
+  }, [issueId, provider]);
 
   useEffect(() => {
     if (!issueId) return;

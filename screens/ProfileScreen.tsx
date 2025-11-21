@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ImageBackground, Image, ActionSheetIOS, Platform } from 'react-native';
+import React, { useState, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, Alert, ImageBackground, Image, ActionSheetIOS, Platform, Share, ScrollView } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Asset } from 'expo-asset';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,6 +17,30 @@ import { FacilityMembersModal } from '../components/FacilityMembersModal';
 import { Facility } from '../types/database';
 import { supabase } from '../lib/supabase';
 import QRCode from 'react-native-qrcode-svg';
+import { useServiceProvider } from '../hooks/useServiceProvider';
+import { useServiceRegistrations } from '../hooks/useServiceRegistrations';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
+import { Card } from '../components/Card';
+// Import expo-print with error handling for native module
+let Print: typeof import('expo-print') | null = null;
+try {
+  Print = require('expo-print');
+} catch (e) {
+  console.warn('expo-print not available:', e);
+}
+
+// House role options
+const houseRoleOptions = [
+  'Člen výboru',
+  'Předseda',
+  'Místopředseda',
+  'Kontrolní komise',
+  'Pokladník',
+  'Správce',
+  'Jiné',
+];
 
 // Component for facility card with role check
 function FacilityCard({ 
@@ -117,11 +143,22 @@ function FacilityCard({
   );
 }
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
 export function ProfileScreen() {
+  const navigation = useNavigation<NavigationProp>();
   const { user, signOut } = useAuth();
   const { facilities, updateFacility, deleteFacility, leaveFacility } = useFacilities();
   const { profile, updateProfile, uploadAvatar } = useUserProfile();
+  const { provider } = useServiceProvider();
+  const { registrations } = useServiceRegistrations();
   const { t, ready } = useTranslation();
+  
+  // Count active services
+  const activeServicesCount = registrations.filter(
+    reg => reg.status === 'active' && 
+    (!reg.paid_until || new Date(reg.paid_until) > new Date())
+  ).length;
   
   const [editingFacility, setEditingFacility] = useState<Facility | null>(null);
   const [editName, setEditName] = useState('');
@@ -134,6 +171,8 @@ export function ProfileScreen() {
   const [editLastName, setEditLastName] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editHouseRole, setEditHouseRole] = useState('');
+  const [houseRolePickerVisible, setHouseRolePickerVisible] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [membersModalVisible, setMembersModalVisible] = useState(false);
   const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
@@ -144,6 +183,7 @@ export function ProfileScreen() {
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [facilityForInvite, setFacilityForInvite] = useState<Facility | null>(null);
+  const qrCodeRef = useRef<any>(null);
 
   const handleSignOut = async () => {
     try {
@@ -214,6 +254,214 @@ export function ProfileScreen() {
     } catch (error) {
       console.error('Error managing invite code:', error);
       Alert.alert('Chyba', 'Nepodařilo se načíst kód pro pozvání.');
+    }
+  };
+
+  const handlePrintInvite = async () => {
+    if (!inviteCode || !facilityForInvite) return;
+
+    try {
+      // Get QR code as base64 image
+      let qrCodeBase64 = '';
+      if (qrCodeRef.current) {
+        try {
+          qrCodeBase64 = await new Promise<string>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Timeout'));
+            }, 2000);
+            qrCodeRef.current?.toDataURL((data: string) => {
+              clearTimeout(timeout);
+              resolve(data);
+            });
+          });
+        } catch (err) {
+          console.warn('Could not get QR code as image:', err);
+        }
+      }
+
+      // Load logo as base64
+      let logoBase64 = '';
+      try {
+        const asset = Asset.fromModule(require('../assets/logo_print.webp'));
+        await asset.downloadAsync();
+        const uri = asset.localUri || asset.uri;
+        if (uri) {
+          console.log('Loading logo from URI:', uri);
+          const base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          logoBase64 = `data:image/webp;base64,${base64}`;
+          console.log('Logo loaded, base64 length:', logoBase64.length);
+        } else {
+          console.warn('No URI available for logo');
+        }
+      } catch (err) {
+        console.error('Could not load logo:', err);
+      }
+
+      // Create HTML content for printing
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Pozvánka k připojení</title>
+            <style>
+              @media print {
+                @page {
+                  size: A4;
+                  margin: 10mm;
+                }
+                body {
+                  margin: 0;
+                  padding: 0;
+                }
+                * {
+                  page-break-inside: avoid;
+                }
+              }
+              body {
+                font-family: Arial, sans-serif;
+                padding: 10px;
+                max-width: 600px;
+                margin: 0 auto;
+                display: flex;
+                flex-direction: column;
+              }
+              .header {
+                text-align: left;
+                margin-bottom: 10px;
+              }
+              .header h1 {
+                color: #333;
+                margin: 0 0 5px 0;
+                font-size: 20px;
+              }
+              .header img {
+                max-width: 120px;
+                height: auto;
+                margin-bottom: 5px;
+              }
+              .content {
+                flex: 1;
+              }
+              .content h2 {
+                font-size: 18px;
+                margin-bottom: 8px;
+                text-align: center;
+              }
+              .address {
+                color: #666;
+                margin-bottom: 10px;
+                text-align: center;
+                font-size: 12px;
+              }
+              .code {
+                font-size: 24px;
+                font-weight: bold;
+                color: #007AFF;
+                letter-spacing: 2px;
+                text-align: center;
+                margin: 10px 0;
+                padding: 10px;
+                background: #f5f5f5;
+                border-radius: 8px;
+              }
+              .qr-code {
+                text-align: center;
+                margin: 10px 0;
+              }
+              .qr-code img {
+                max-width: 150px;
+                height: auto;
+              }
+              .instructions {
+                color: #666;
+                line-height: 1.4;
+                margin-top: 10px;
+                font-size: 11px;
+              }
+              .instructions p {
+                margin: 5px 0;
+              }
+              .instructions ol {
+                margin: 5px 0;
+                padding-left: 18px;
+              }
+              .instructions li {
+                margin: 3px 0;
+              }
+              .signature-section {
+                margin-top: 15px;
+                text-align: right;
+              }
+              .signature-text {
+                color: #666;
+                font-size: 11px;
+                margin-bottom: 30px;
+              }
+              .signature-line {
+                border-top: 1px solid #333;
+                width: 150px;
+                margin-left: auto;
+                margin-top: 5px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              ${logoBase64 ? `<img src="${logoBase64}" alt="Altrano" />` : '<h1>Altrano</h1>'}
+            </div>
+            <div class="content">
+              <h2 style="color: #333;">Pozvánka k připojení k nemovitosti</h2>
+              <div class="address">
+                <strong>${facilityForInvite.name}</strong><br>
+                ${facilityForInvite.address || ''}
+              </div>
+              <div class="code">${inviteCode}</div>
+              ${qrCodeBase64 ? `<div class="qr-code"><img src="data:image/png;base64,${qrCodeBase64}" alt="QR Code" /></div>` : ''}
+              <div class="instructions">
+                <p><strong>Jak se připojit:</strong></p>
+                <ol>
+                  <li>Otevřete aplikaci Altrano</li>
+                  <li>Přejděte do sekce "Moje nemovitosti"</li>
+                  <li>Klikněte na tlačítko "Připojit se"</li>
+                  <li>Zadejte výše uvedený kód nebo naskenujte QR kód</li>
+                </ol>
+              </div>
+              <div class="signature-section">
+                <div class="signature-text">
+                  K tomuto domu vás zve a těší se<br>
+                  ${profile?.first_name || ''} ${profile?.last_name || ''}
+                </div>
+                <div class="signature-line"></div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      // Print using expo-print if available, otherwise use Share API
+      if (Print) {
+        try {
+          await Print.printAsync({
+            html: htmlContent,
+            base64: false,
+          });
+          return;
+        } catch (printError) {
+          console.warn('Print failed, falling back to Share:', printError);
+        }
+      }
+      
+      // Fallback to Share API
+      await Share.share({
+        message: `Pozvánka k připojení k nemovitosti ${facilityForInvite.name}\n\nKód: ${inviteCode}\n\nPro připojení použijte tento kód v aplikaci nebo naskenujte QR kód.`,
+        title: 'Pozvánka k připojení',
+      });
+    } catch (error: any) {
+      console.error('Error printing invite:', error);
+      Alert.alert('Chyba', 'Nepodařilo se vytisknout pozvánku.');
     }
   };
 
@@ -299,6 +547,7 @@ export function ProfileScreen() {
     setEditLastName(profile?.last_name || '');
     setEditTitle(profile?.title || '');
     setEditPhone(profile?.phone || '');
+    setEditHouseRole(profile?.house_role || '');
     setEditingProfile(true);
   };
 
@@ -309,12 +558,50 @@ export function ProfileScreen() {
         last_name: editLastName.trim() || null,
         title: editTitle.trim() || null,
         phone: editPhone.trim() || null,
+        house_role: editHouseRole.trim() || null,
       });
       setEditingProfile(false);
       Alert.alert('Hotovo', 'Profil byl upraven.');
     } catch (error) {
       Alert.alert('Chyba', 'Nepodařilo se upravit profil.');
     }
+  };
+
+  const showHouseRolePicker = () => {
+    if (Platform.OS === 'ios') {
+      const options = [...houseRoleOptions, 'Zrušit'];
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: options.length - 1,
+        },
+        (buttonIndex) => {
+          if (buttonIndex < houseRoleOptions.length) {
+            const selectedRole = houseRoleOptions[buttonIndex];
+            if (selectedRole === 'Jiné') {
+              // If "Jiné" is selected, allow custom input
+              setEditHouseRole('');
+              setFocusedInput('houseRole');
+            } else {
+              setEditHouseRole(selectedRole);
+            }
+          }
+        }
+      );
+    } else {
+      setHouseRolePickerVisible(true);
+    }
+  };
+
+  const handleHouseRoleSelect = (role: string) => {
+    if (role === 'Jiné') {
+      // If "Jiné" is selected, allow custom input
+      setEditHouseRole('');
+      setFocusedInput('houseRole');
+    } else {
+      setEditHouseRole(role);
+    }
+    setHouseRolePickerVisible(false);
   };
 
   const ensureMediaLibraryPermission = async (): Promise<boolean> => {
@@ -428,6 +715,36 @@ export function ProfileScreen() {
     return user?.email?.charAt(0).toUpperCase() || 'U';
   };
 
+  // Calculate sticky header indices
+  const stickyHeaderIndices = useMemo(() => {
+    const indices: number[] = [];
+    let index = 0;
+    
+    // Header (not sticky) - index 0
+    index++; // header View
+    
+    // Profile Info Section (if exists)
+    if (profile?.first_name || profile?.last_name || profile?.title || profile?.phone) {
+      index++; // profileInfoCard
+    }
+    
+    // Services Section header
+    if (provider && activeServicesCount > 0) {
+      indices.push(index); // stickySectionHeader for Services
+      index++; // stickySectionHeader
+      index++; // servicesSection content
+    } else if (!provider) {
+      indices.push(index); // stickySectionHeader for Services
+      index++; // stickySectionHeader
+      index++; // servicesSection content
+    }
+    
+    // My Facilities Section header
+    indices.push(index); // stickySectionHeader for My Facilities
+    
+    return indices;
+  }, [profile, provider, activeServicesCount]);
+
   if (!ready) {
     return (
       <ImageBackground 
@@ -453,97 +770,152 @@ export function ProfileScreen() {
       imageStyle={styles.backgroundImageStyle}
     >
       <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.avatarContainer}
-          onPress={handleAvatarPress}
-          disabled={uploadingAvatar}
-        >
-          {profile?.avatar_url ? (
-            <Image 
-              source={{ uri: profile.avatar_url }} 
-              style={styles.avatarImage}
-            />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitials()}</Text>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        stickyHeaderIndices={stickyHeaderIndices}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.avatarContainer}
+            onPress={handleAvatarPress}
+            disabled={uploadingAvatar}
+          >
+            {profile?.avatar_url ? (
+              <Image 
+                source={{ uri: profile.avatar_url }} 
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{getInitials()}</Text>
+              </View>
+            )}
+            {uploadingAvatar && (
+              <View style={styles.avatarOverlay}>
+                <Ionicons name="hourglass-outline" size={24} color={colors.textOnPrimary} />
+              </View>
+            )}
+            <View style={styles.avatarEditIcon}>
+              <Ionicons name="camera" size={16} color={colors.textOnPrimary} />
             </View>
-          )}
-          {uploadingAvatar && (
-            <View style={styles.avatarOverlay}>
-              <Ionicons name="hourglass-outline" size={24} color={colors.textOnPrimary} />
-            </View>
-          )}
-          <View style={styles.avatarEditIcon}>
-            <Ionicons name="camera" size={16} color={colors.textOnPrimary} />
+          </TouchableOpacity>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>{getDisplayName()}</Text>
+            {profile?.title && <Text style={styles.subtitle}>{profile.title}</Text>}
+            {user?.email && <Text style={styles.email}>{user.email}</Text>}
+            {profile?.phone && <Text style={styles.phone}>{profile.phone}</Text>}
           </View>
-        </TouchableOpacity>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>{getDisplayName()}</Text>
-          {profile?.title && <Text style={styles.subtitle}>{profile.title}</Text>}
-          {user?.email && <Text style={styles.email}>{user.email}</Text>}
-          {profile?.phone && <Text style={styles.phone}>{profile.phone}</Text>}
+          <TouchableOpacity onPress={handleEditProfile} style={styles.editProfileButton}>
+            <Ionicons name="pencil-outline" size={22} color={colors.primary} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleEditProfile} style={styles.editProfileButton}>
-          <Ionicons name="pencil-outline" size={22} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
 
-      {/* Profile Info Section */}
-      {(profile?.first_name || profile?.last_name || profile?.title || profile?.phone) && (
-        <View style={styles.profileInfoCard}>
-          {profile.first_name && (
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Jméno:</Text>
-              <Text style={styles.profileValue}>{profile.first_name}</Text>
-            </View>
-          )}
-          {profile.last_name && (
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Příjmení:</Text>
-              <Text style={styles.profileValue}>{profile.last_name}</Text>
-            </View>
-          )}
-          {profile.title && (
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Titul:</Text>
-              <Text style={styles.profileValue}>{profile.title}</Text>
-            </View>
-          )}
-          {profile.phone && (
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Telefon:</Text>
-              <Text style={styles.profileValue}>{profile.phone}</Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>{t('profile.myFacilities')}</Text>
-      <FlatList
-        data={facilities}
-        keyExtractor={(f) => f.id}
-        contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xl }}
-        renderItem={({ item }) => (
-          <FacilityCard
-            item={item}
-            onEdit={handleEditFacility}
-            onUsers={(id) => {
-              setSelectedFacilityId(id);
-              setMembersModalVisible(true);
-            }}
-            onNotes={handleEditNotes}
-            onDelete={handleDeleteFacility}
-            onLeave={handleLeaveFacility}
-            onShare={handleShare}
-          />
+        {/* Profile Info Section */}
+        {(profile?.first_name || profile?.last_name || profile?.title || profile?.phone || profile?.house_role) && (
+          <View style={styles.profileInfoCard}>
+            {profile.first_name && (
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Jméno:</Text>
+                <Text style={styles.profileValue}>{profile.first_name}</Text>
+              </View>
+            )}
+            {profile.last_name && (
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Příjmení:</Text>
+                <Text style={styles.profileValue}>{profile.last_name}</Text>
+              </View>
+            )}
+            {profile.title && (
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Titul:</Text>
+                <Text style={styles.profileValue}>{profile.title}</Text>
+              </View>
+            )}
+            {profile.phone && (
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Telefon:</Text>
+                <Text style={styles.profileValue}>{profile.phone}</Text>
+              </View>
+            )}
+            {profile.house_role && (
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Role v domě:</Text>
+                <Text style={styles.profileValue}>{profile.house_role}</Text>
+              </View>
+            )}
+          </View>
         )}
-      />
-      <View style={styles.footer}>
-        <TouchableOpacity onPress={handleSignOut} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>{t('profile.signOut')}</Text>
-        </TouchableOpacity>
-      </View>
+
+        {/* Services Section */}
+        {(provider && activeServicesCount > 0) || !provider ? (
+          <View style={[styles.stickySectionHeader, { marginLeft: spacing.xl * 0.7 }]}>
+            <Text style={styles.sectionTitle}>Služby</Text>
+          </View>
+        ) : null}
+        {provider && activeServicesCount > 0 && (
+          <View style={styles.servicesSection}>
+            <Card style={styles.providerInfoCard}>
+              <View style={styles.providerInfoHeader}>
+                <View style={styles.providerInfoLeft}>
+                  <Ionicons name="construct" size={24} color={colors.primary} />
+                  <View style={styles.providerInfoText}>
+                    <Text style={styles.providerInfoTitle}>Aktivní služby</Text>
+                    <Text style={styles.providerInfoSubtitle}>
+                      {activeServicesCount} {activeServicesCount === 1 ? 'služba' : activeServicesCount < 5 ? 'služby' : 'služeb'}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('MyServices' as never)}
+                  style={styles.providerInfoButton}
+                >
+                  <Text style={styles.providerInfoButtonText}>Zobrazit</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          </View>
+        )}
+        {!provider && (
+          <View style={styles.servicesSection}>
+            <TouchableOpacity
+              style={styles.serviceButton}
+              onPress={() => navigation.navigate('ServiceRegistration')}
+            >
+              <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+              <Text style={styles.serviceButtonText}>Registrovat jako dodavatel</Text>
+              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={[styles.stickySectionHeader, { marginLeft: spacing.xl * 0.7 }]}>
+          <Text style={styles.sectionTitle}>{t('profile.myFacilities')}</Text>
+        </View>
+        <View style={{ marginTop: spacing.md }}>
+          {facilities.map((item) => (
+            <View key={item.id} style={{ paddingHorizontal: spacing.xl }}>
+              <FacilityCard
+              item={item}
+              onEdit={handleEditFacility}
+              onUsers={(id) => {
+                setSelectedFacilityId(id);
+                setMembersModalVisible(true);
+              }}
+              onNotes={handleEditNotes}
+              onDelete={handleDeleteFacility}
+              onLeave={handleLeaveFacility}
+              onShare={handleShare}
+            />
+            </View>
+          ))}
+        </View>
+        <View style={styles.footer}>
+          <TouchableOpacity onPress={handleSignOut} style={styles.signOutButton}>
+            <Text style={styles.signOutText}>{t('profile.signOut')}</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       {/* Edit Modal */}
       <Modal
@@ -605,12 +977,6 @@ export function ProfileScreen() {
             />
             
             <View style={styles.modalButtons}>
-              <Button
-                title="Zrušit"
-                onPress={() => setEditingFacility(null)}
-                variant="outline"
-                style={styles.modalButton}
-              />
               <Button
                 title="Uložit"
                 onPress={handleSaveEdit}
@@ -690,13 +1056,31 @@ export function ProfileScreen() {
               onBlur={() => setFocusedInput(null)}
             />
             
-            <View style={styles.modalButtons}>
-              <Button
-                title="Zrušit"
-                onPress={() => setEditingProfile(false)}
-                variant="outline"
-                style={styles.modalButton}
+            {focusedInput === 'houseRole' ? (
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.inputFocused
+                ]}
+                placeholder="Zadejte vlastní roli v domě"
+                placeholderTextColor={colors.placeholder}
+                value={editHouseRole}
+                onChangeText={setEditHouseRole}
+                onBlur={() => setFocusedInput(null)}
               />
+            ) : (
+              <TouchableOpacity
+                style={styles.houseRoleButton}
+                onPress={showHouseRolePicker}
+              >
+                <Text style={[styles.houseRoleButtonText, !editHouseRole && styles.houseRoleButtonTextPlaceholder]}>
+                  {editHouseRole || 'Vyberte roli v domě'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            
+            <View style={styles.modalButtons}>
               <Button
                 title="Uložit"
                 onPress={handleSaveProfile}
@@ -726,6 +1110,54 @@ export function ProfileScreen() {
             setSelectedFacilityId(null);
           }}
         />
+      )}
+
+      {/* House Role Picker Modal for Android */}
+      {Platform.OS === 'android' && (
+        <Modal
+          visible={houseRolePickerVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setHouseRolePickerVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.rolePickerOverlay}
+            activeOpacity={1}
+            onPress={() => setHouseRolePickerVisible(false)}
+          >
+            <View style={styles.rolePickerContent}>
+              <Text style={styles.rolePickerTitle}>Vyberte roli v domě</Text>
+              {houseRoleOptions.map((role) => (
+                <TouchableOpacity
+                  key={role}
+                  style={[
+                    styles.rolePickerOption,
+                    editHouseRole === role && styles.rolePickerOptionSelected,
+                  ]}
+                  onPress={() => handleHouseRoleSelect(role)}
+                >
+                  <Text
+                    style={[
+                      styles.rolePickerOptionText,
+                      editHouseRole === role && styles.rolePickerOptionTextSelected,
+                    ]}
+                  >
+                    {role}
+                  </Text>
+                  {editHouseRole === role && (
+                    <Ionicons name="checkmark" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.rolePickerCancel}
+                onPress={() => setHouseRolePickerVisible(false)}
+              >
+                <Text style={styles.rolePickerCancelText}>Zrušit</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       )}
 
       {/* Notes Modal */}
@@ -837,19 +1269,24 @@ export function ProfileScreen() {
                 <QRCode
                   value={inviteCode}
                   size={200}
+                  getRef={(ref) => {
+                    if (ref) {
+                      qrCodeRef.current = ref;
+                    }
+                  }}
                 />
               )}
             </View>
             
-            <Button
-              title="Zavřít"
-              onPress={() => {
-                setInviteModalVisible(false);
-                setFacilityForInvite(null);
-                setInviteCode(null);
-              }}
-              style={styles.closeButton}
-            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={handlePrintInvite}
+                style={styles.printButton}
+              >
+                <Ionicons name="print-outline" size={24} color="#FFFFFF" />
+                <Text style={styles.printButtonText}>Vytisknout</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -971,11 +1408,47 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 4,
   },
-  sectionTitle: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xl,
+  },
+  stickySectionHeader: {
+    backgroundColor: '#E3F2FD',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
+    paddingTop: spacing.lg,
+    marginTop: spacing.sm,
+    marginRight: spacing.xl,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  sectionTitle: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.semibold,
+    color: colors.text,
+  },
+  servicesSection: {
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
+  },
+  serviceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  serviceButtonText: {
+    flex: 1,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
     color: colors.text,
   },
   card: {
@@ -1122,12 +1595,27 @@ const styles = StyleSheet.create({
     minHeight: 80,
   },
   modalButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
     marginTop: spacing.md,
+    marginBottom: spacing.lg,
   },
   modalButton: {
     flex: 1,
+  },
+  printButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    minHeight: 48,
+  },
+  printButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: '#FFFFFF',
   },
   notesPreview: {
     flexDirection: 'row',
@@ -1192,5 +1680,115 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     width: '100%',
+  },
+  providerInfoCard: {
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  providerInfoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  providerInfoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  providerInfoText: {
+    marginLeft: spacing.md,
+    flex: 1,
+  },
+  providerInfoTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  providerInfoSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  providerInfoButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  providerInfoButtonText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.textOnPrimary,
+  },
+  houseRoleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    marginBottom: spacing.md,
+  },
+  houseRoleButtonText: {
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  houseRoleButtonTextPlaceholder: {
+    color: colors.placeholder,
+  },
+  rolePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  rolePickerContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+    maxHeight: '80%',
+  },
+  rolePickerTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.semibold,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
+  },
+  rolePickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rolePickerOptionSelected: {
+    backgroundColor: colors.primary + '10',
+  },
+  rolePickerOptionText: {
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  rolePickerOptionTextSelected: {
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
+  },
+  rolePickerCancel: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+  },
+  rolePickerCancelText: {
+    fontSize: fontSize.md,
+    color: colors.primary,
+    fontWeight: fontWeight.semibold,
   },
 });

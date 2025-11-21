@@ -8,6 +8,7 @@ export interface UserProfile {
   last_name: string | null;
   title: string | null;
   phone: string | null;
+  house_role: string | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

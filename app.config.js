@@ -9,7 +9,7 @@ module.exports = {
     icon: "./assets/logo.png",
     userInterfaceStyle: "light",
     newArchEnabled: true,
-    scheme: "myapp",
+    scheme: "myapp", // Deep linking scheme - configure redirect URL in Supabase Dashboard as: myapp://**
     splash: {
       backgroundColor: "#FFFFFF"
     },

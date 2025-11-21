@@ -12,4 +12,10 @@ export type RootStackParamList = {
   CreateIssue: { facilityId: string };
   IssueDetail: { issueId: string; facilityId: string };
   EditIssue: { issueId: string; facilityId: string };
+  ServiceRegistration: undefined;
+  MyServices: undefined;
+  ServiceCatalog: undefined;
+  ServiceRequest: { issueId: string };
+  ServiceApplications: { requestId: string; issueId: string };
+  AppointmentSelection: { issueId: string; providerId?: string };
 };

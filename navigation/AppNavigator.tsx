@@ -17,6 +17,12 @@ import { IssueDetailScreen } from '../screens/IssueDetailScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { JoinFacilityScreen } from '../screens/JoinFacilityScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { ServiceRegistrationScreen } from '../screens/ServiceRegistrationScreen';
+import { MyServicesScreen } from '../screens/MyServicesScreen';
+import { ServiceCatalogScreen } from '../screens/ServiceCatalogScreen';
+import { ServiceRequestScreen } from '../screens/ServiceRequestScreen';
+import { ServiceApplicationsScreen } from '../screens/ServiceApplicationsScreen';
+import { AppointmentSelectionScreen } from '../screens/AppointmentSelectionScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -113,6 +119,51 @@ export function AppNavigator() {
               component={IssueDetailScreen}
               options={{
                 title: 'Detail závady',
+              }}
+            />
+            <Stack.Screen
+              name="ServiceRegistration"
+              component={ServiceRegistrationScreen}
+              options={{
+                title: 'Registrace služeb',
+                presentation: 'modal',
+              }}
+            />
+            <Stack.Screen
+              name="MyServices"
+              component={MyServicesScreen}
+              options={{
+                title: 'Moje služby',
+              }}
+            />
+            <Stack.Screen
+              name="ServiceCatalog"
+              component={ServiceCatalogScreen}
+              options={{
+                title: 'Katalog služeb',
+              }}
+            />
+            <Stack.Screen
+              name="ServiceRequest"
+              component={ServiceRequestScreen}
+              options={{
+                title: 'Poptávka dodavatele',
+                presentation: 'modal',
+              }}
+            />
+            <Stack.Screen
+              name="ServiceApplications"
+              component={ServiceApplicationsScreen}
+              options={{
+                title: 'Přihlášky dodavatelů',
+              }}
+            />
+            <Stack.Screen
+              name="AppointmentSelection"
+              component={AppointmentSelectionScreen}
+              options={{
+                title: 'Termíny',
+                presentation: 'modal',
               }}
             />
           </>
