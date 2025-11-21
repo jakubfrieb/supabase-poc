@@ -30,6 +30,8 @@ import { useServiceRegistrations } from '../hooks/useServiceRegistrations';
 import { useServiceApplications } from '../hooks/useServiceApplications';
 import { WorkflowStepper } from '../components/WorkflowStepper';
 import { ServiceProviderCard } from '../components/ServiceProviderCard';
+import { StatusPickerModal } from '../components/StatusPickerModal';
+import { IssueDetailSkeleton } from '../components/IssueDetailSkeleton';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteProps = RouteProp<RootStackParamList, 'IssueDetail'>;
@@ -74,6 +76,7 @@ export function IssueDetailScreen() {
   const [showCancelProviderModal, setShowCancelProviderModal] = useState(false);
   const [cancelProviderReason, setCancelProviderReason] = useState('');
   const [cancellingProvider, setCancellingProvider] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   const { updateIssue, deleteIssue } = useIssues(facilityId);
   const { messages, sendMessage, fetchMessages, loading: messagesLoading } = useIssueMessages(issueId);
@@ -104,16 +107,16 @@ export function IssueDetailScreen() {
 
   // Check if user can edit priority (author or admin/owner)
   const canEditPriority = issue && user && (issue.created_by === user.id || isAdminOrOwner);
-  
+
   // Check if current user is a provider (not admin/owner)
   const isProviderView = currentProvider && !isAdminOrOwner;
-  
+
   // Provider can comment only if they have applied
   const canProviderComment = isProviderView && hasApplied;
 
   // Check if provider selection was cancelled (by checking messages)
   const isProviderSelectionCancelled = React.useMemo(() => {
-    return messages.some(m => 
+    return messages.some(m =>
       m.content && m.content.includes('[Zrušeno výběr dodavatele]')
     );
   }, [messages]);
@@ -169,7 +172,7 @@ export function IssueDetailScreen() {
           console.error('RPC error:', rpcError);
           throw rpcError;
         }
-        
+
         if (rpcData && rpcData.length > 0) {
           data = rpcData[0];
           error = null;
@@ -237,7 +240,7 @@ export function IssueDetailScreen() {
 
     try {
       setCancellingProvider(true);
-      
+
       // Send message with cancellation reason
       await sendMessage(
         `[Zrušeno výběr dodavatele] ${cancelProviderReason.trim()}`,
@@ -252,7 +255,7 @@ export function IssueDetailScreen() {
           .from('issue_service_requests')
           .update({ status: 'closed' })
           .in('id', requestIds);
-        
+
         if (closeError) {
           console.error('Error closing requests:', closeError);
           throw closeError;
@@ -267,12 +270,12 @@ export function IssueDetailScreen() {
       });
 
       // Update local state
-      setIssue((prev) => 
-        prev ? { 
-          ...prev, 
-          assigned_provider_id: null, 
+      setIssue((prev) =>
+        prev ? {
+          ...prev,
+          assigned_provider_id: null,
           selected_appointment_id: null,
-          status: 'open' 
+          status: 'open'
         } : null
       );
 
@@ -282,7 +285,7 @@ export function IssueDetailScreen() {
       // Close modal and reset form
       setShowCancelProviderModal(false);
       setCancelProviderReason('');
-      
+
       Alert.alert('Hotovo', 'Výběr dodavatele byl zrušen.');
     } catch (error: any) {
       console.error('Error cancelling provider selection:', error);
@@ -294,64 +297,64 @@ export function IssueDetailScreen() {
 
   const handleSendMessage = async () => {
     if (sendingMessage) return;
-    
+
     let attachmentUrl: string | null = null;
     try {
       setSendingMessage(true);
-      
+
       if (localImage && localImageBase64) {
         // Convert base64 to Uint8Array (React Native compatible)
         // Base64 decode function that works everywhere
         const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
         const bytes: number[] = [];
         let base64 = localImageBase64;
-        
+
         // Remove any whitespace and padding
         base64 = base64.replace(/[^A-Za-z0-9\+\/]/g, '').replace(/=+$/, '');
-        
+
         for (let i = 0; i < base64.length; i += 4) {
           const encoded1 = base64Chars.indexOf(base64.charAt(i));
           const encoded2 = base64Chars.indexOf(base64.charAt(i + 1));
           const encoded3 = base64Chars.indexOf(base64.charAt(i + 2));
           const encoded4 = base64Chars.indexOf(base64.charAt(i + 3));
-          
+
           if (encoded1 === -1 || encoded2 === -1) break;
-          
-          const bitmap = (encoded1 << 18) | (encoded2 << 12) | 
-                         ((encoded3 !== -1 ? encoded3 : 64) << 6) | 
-                         (encoded4 !== -1 ? encoded4 : 64);
-          
+
+          const bitmap = (encoded1 << 18) | (encoded2 << 12) |
+            ((encoded3 !== -1 ? encoded3 : 64) << 6) |
+            (encoded4 !== -1 ? encoded4 : 64);
+
           bytes.push((bitmap >> 16) & 255);
           if (encoded3 !== -1) bytes.push((bitmap >> 8) & 255);
           if (encoded4 !== -1) bytes.push(bitmap & 255);
         }
-        
+
         const uint8Array = new Uint8Array(bytes);
-        
+
         // Determine file extension and content type
         const fileExt = localImage.split('.').pop()?.toLowerCase() || 'jpg';
         const contentType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
-        
+
         const path = `issues/${issueId}/${Date.now()}.${fileExt}`;
         const { error: upErr } = await supabase.storage
           .from('issue-attachments')
-          .upload(path, uint8Array, { 
-            cacheControl: '3600', 
-            upsert: false, 
-            contentType 
+          .upload(path, uint8Array, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType
           });
         if (upErr) throw upErr;
         const { data } = supabase.storage.from('issue-attachments').getPublicUrl(path);
         attachmentUrl = data.publicUrl;
       }
-      
+
       await sendMessage(messageText.trim() || null, attachmentUrl);
-      
+
       // Clear form immediately
       setMessageText('');
       setLocalImage(null);
       setLocalImageBase64(null);
-      
+
       // Message is already added via optimistic update in sendMessage
       // Real-time subscription will update it with the real ID when it arrives
     } catch (e: any) {
@@ -381,16 +384,14 @@ export function IssueDetailScreen() {
 
   if (loading || !issue) {
     return (
-      <ImageBackground 
-        source={require('../assets/background/theme_1.png')} 
+      <ImageBackground
+        source={require('../assets/background/theme_1.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
         imageStyle={styles.backgroundImageStyle}
       >
         <SafeAreaView style={styles.container}>
-          <View style={styles.loadingContainer}>
-            <Text>Loading...</Text>
-          </View>
+          <IssueDetailSkeleton />
         </SafeAreaView>
       </ImageBackground>
     );
@@ -399,675 +400,672 @@ export function IssueDetailScreen() {
   const availableStatuses = statusTransitions[issue.status];
 
   return (
-    <ImageBackground 
-      source={require('../assets/background/theme_1.png')} 
+    <ImageBackground
+      source={require('../assets/background/theme_1.png')}
       style={styles.backgroundImage}
       resizeMode="cover"
       imageStyle={styles.backgroundImageStyle}
     >
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           style={styles.keyboardAvoid}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-        <ScrollView 
-          ref={scrollViewRef}
-          contentContainerStyle={styles.scrollContent}
-        >
-        <Card>
-          <View style={styles.headerTop}>
-            <View style={styles.titleRow}>
-              <PriorityBadge 
-                priority={issue.priority as any}
-                showText={false}
-                size="small"
-                showTooltip={!canEditPriority}
-                onPress={canEditPriority ? () => setShowPriorityPicker(true) : undefined}
-              />
-              <Text style={styles.title}>{issue.title}</Text>
-            </View>
-            {isAdminOrOwner && (
-              <TouchableOpacity
-                onPress={() => setShowDeleteModal(true)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={styles.deleteIconButton}
-              >
-                <Ionicons name="trash-outline" size={22} color={colors.error} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <View style={styles.badges}>
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: statusColors[issue.status] },
-                ]}
-              >
-                <Text style={styles.badgeText}>{t(`issues.statusNames.${issue.status}`)}</Text>
-              </View>
-            </View>
-
-          {issue.description && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>{t('issues.descriptionLabel')}</Text>
-              <Text style={styles.description}>{issue.description}</Text>
-            </View>
-          )}
-
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{t('issues.details')}</Text>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{t('issues.reportedBy')}</Text>
-              <UserAvatar userId={issue.created_by} size="small" showName={true} />
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{t('issues.created')}</Text>
-              <Text style={styles.detailValue}>
-                {new Date(issue.created_at).toLocaleDateString()}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{t('issues.lastUpdated')}</Text>
-              <Text style={styles.detailValue}>
-                {new Date(issue.updated_at).toLocaleDateString()}
-              </Text>
-            </View>
-          </View>
-          {/* Attachments inside details card (read-only list) */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{t('issues.attachments')}</Text>
-            {attachmentsLoading ? (
-              <View style={styles.messagesLoading}>
-                <Text style={styles.loadingText}>Načítání příloh...</Text>
-              </View>
-            ) : (
-              <AttachmentsGrid
-                items={attachments.map(a => ({ id: a.id, uri: a.url, url: a.url, fileName: a.file_name, contentType: a.content_type }))}
-                onPreview={(idx) => {
-                  const a = attachments[idx];
-                  if (!a || !a.content_type?.startsWith('image/')) return;
-                  // Find index in allImages
-                  const imageIndex = allImages.findIndex(img => img.uri === a.url);
-                  if (imageIndex >= 0) {
-                    setPreviewIndex(imageIndex);
-                    setShowPreview(true);
-                  }
-                }}
-                onRemove={(idx) => {
-                  const a = attachments[idx];
-                  if (!a) return;
-                  deleteAttachment(a.id);
-                }}
-              />
-            )}
-          </View>
-        </Card>
-
-        {/* Messages */}
-        <Card style={styles.cardSpacing}>
-          <Text style={styles.sectionLabel}>Komunikace</Text>
-          {messagesLoading ? (
-            <View style={styles.messagesLoading}>
-              <Text style={styles.loadingText}>Načítání zpráv...</Text>
-            </View>
-          ) : messages.length === 0 ? (
-            <View style={styles.emptyMessages}>
-              <Text style={styles.emptyMessagesText}>Zatím žádné zprávy</Text>
-            </View>
-          ) : (
-            messages.map((m) => {
-              const isMine = user && m.user_id === user.id;
-              return (
-                <View key={m.id} style={[styles.messageRow, { alignItems: 'flex-start' }]}>
-                  <View style={[styles.messageBubble, isMine && styles.messageBubbleMine, isMine ? { marginLeft: 15, marginRight: 0 } : { marginRight: 15, marginLeft: 0 }]}>
-                    {m.attachment_url ? (
-                      <TouchableOpacity onPress={() => {
-                        const imageIndex = allImages.findIndex(img => img.uri === m.attachment_url);
-                        if (imageIndex >= 0) {
-                          setPreviewIndex(imageIndex);
-                          setShowPreview(true);
-                        }
-                      }}>
-                        <Image source={{ uri: m.attachment_url }} style={styles.messageImage} />
-                      </TouchableOpacity>
-                    ) : null}
-                    {m.content ? <Text style={styles.messageText}>{m.content}</Text> : null}
-                    <View style={styles.messageMetaRow}>
-                      <Text style={styles.messageMetaLeft}>
-                        od: {isMine ? 'já' : 'uživatel'}
-                      </Text>
-                      <Text style={styles.messageMetaRight}>
-                        {new Date(m.created_at).toLocaleTimeString()}
-                      </Text>
-                    </View>
-                  </View>
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <Card>
+              <View style={styles.headerTop}>
+                <View style={styles.titleRow}>
+                  <PriorityBadge
+                    priority={issue.priority as any}
+                    showText={false}
+                    size="small"
+                    showTooltip={!canEditPriority}
+                    onPress={canEditPriority ? () => setShowPriorityPicker(true) : undefined}
+                  />
+                  <Text style={styles.title}>{issue.title}</Text>
                 </View>
-              );
-            })
-          )}
-        </Card>
-
-        {localImage ? (
-          <View style={styles.preview}>
-            <Image source={{ uri: localImage }} style={styles.previewImage} />
-            <TouchableOpacity onPress={() => {
-              setLocalImage(null);
-              setLocalImageBase64(null);
-            }}>
-              <Text style={styles.removePreview}>Odebrat</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {/* Only show composer if user is not a provider, or if provider has applied */}
-        {(!isProviderView || canProviderComment) && (
-          <View style={styles.composer}>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Napište zprávu…"
-              value={messageText}
-              onChangeText={setMessageText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            <View style={styles.inputIcons}>
-              <TouchableOpacity
-                style={styles.attachButtonInline}
-                onPress={async () => {
-                  const ok = await ensureMediaLibraryPermission();
-                  if (!ok) return;
-                  const res = await ImagePicker.launchImageLibraryAsync({
-                    allowsEditing: false,
-                    quality: 0.8,
-                    base64: true,
-                  });
-                  if (!res.canceled) {
-                    setLocalImage(res.assets[0].uri);
-                    setLocalImageBase64(res.assets[0].base64 || null);
-                  }
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="image-outline" size={22} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.attachButtonInline}
-                onPress={async () => {
-                  const ok = await ensureCameraPermission();
-                  if (!ok) return;
-                  const res = await ImagePicker.launchCameraAsync({
-                    allowsEditing: false,
-                    quality: 0.8,
-                    base64: true,
-                  });
-                  if (!res.canceled) {
-                    setLocalImage(res.assets[0].uri);
-                    setLocalImageBase64(res.assets[0].base64 || null);
-                  }
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="camera-outline" size={22} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sendButton, sendingMessage && styles.sendButtonDisabled]}
-                onPress={handleSendMessage}
-                disabled={sendingMessage || (!messageText.trim() && !localImage)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                {sendingMessage ? (
-                  <Ionicons name="hourglass-outline" size={20} color={colors.textOnPrimary} />
-                ) : (
-                  <Ionicons name="paper-plane" size={20} color={colors.textOnPrimary} />
+                {isAdminOrOwner && (
+                  <TouchableOpacity
+                    onPress={() => setShowDeleteModal(true)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={styles.deleteIconButton}
+                  >
+                    <Ionicons name="trash-outline" size={22} color={colors.error} />
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        )}
-        
-        {/* Only show status change section for admins/owners, not for providers */}
-        {!isProviderView && availableStatuses.length > 0 && (
-          <View style={styles.statusSection}>
-            <Text style={styles.actionsLabel}>{t('issues.changeStatus')}</Text>
-            <View style={styles.statusButtons}>
-              {availableStatuses.map((status) => (
+              </View>
+              <View style={styles.badges}>
                 <TouchableOpacity
-                  key={status}
                   style={[
-                    styles.statusButton,
-                    { backgroundColor: statusColors[status] },
+                    styles.badge,
+                    { backgroundColor: statusColors[issue.status] },
+                    !isProviderView && availableStatuses.length > 0 && { paddingRight: 8 }
                   ]}
-                  onPress={() => handleStatusChange(status)}
-                  disabled={updating}
+                  onPress={() => {
+                    if (!isProviderView && availableStatuses.length > 0) {
+                      setShowStatusPicker(true);
+                    }
+                  }}
+                  disabled={isProviderView || availableStatuses.length === 0}
                 >
-                  <Text style={styles.statusButtonText}>{t(`issues.statusNames.${status}`)}</Text>
+                  <Text style={styles.badgeText}>{t(`issues.statusNames.${issue.status}`)}</Text>
+                  {!isProviderView && availableStatuses.length > 0 && (
+                    <Ionicons name="chevron-down" size={16} color={colors.textOnPrimary} style={{ marginLeft: 4 }} />
+                  )}
                 </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
+              </View>
 
-        {/* Service Provider Section */}
-        {issue && (
-          <Card style={styles.cardSpacing}>
-            {/* Only show title and WorkflowStepper for admins/owners, not for providers */}
-            {!isProviderView && !isProviderSelectionCancelled && (
-              <>
-                <Text style={styles.sectionLabel}>Dodavatel a termín</Text>
-                <WorkflowStepper
-                  currentStep={
-                    issue.status === 'resolved' || issue.status === 'closed' ? 'completed' :
-                    issue.selected_appointment_id ? 'repair' :
-                    issue.assigned_provider_id ? 'appointment' :
-                    requests.length > 0 ? 'selection' : 'request'
-                  }
-                />
-              </>
-            )}
-            
-            {!issue.assigned_provider_id && isAdminOrOwner && !isProviderSelectionCancelled && (
-              <>
-                {requests.length === 0 && (
-                  <Button
-                    title="Poptat dodavatele"
-                    onPress={() => navigation.navigate('ServiceRequest', { issueId })}
-                    style={styles.button}
+              {issue.description && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>{t('issues.descriptionLabel')}</Text>
+                  <Text style={styles.description}>{issue.description}</Text>
+                </View>
+              )}
+
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>{t('issues.details')}</Text>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{t('issues.reportedBy')}</Text>
+                  <UserAvatar userId={issue.created_by} size="small" showName={true} />
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{t('issues.created')}</Text>
+                  <Text style={styles.detailValue}>
+                    {new Date(issue.created_at).toLocaleDateString()}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{t('issues.lastUpdated')}</Text>
+                  <Text style={styles.detailValue}>
+                    {new Date(issue.updated_at).toLocaleDateString()}
+                  </Text>
+                </View>
+              </View>
+              {/* Attachments inside details card (read-only list) */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>{t('issues.attachments')}</Text>
+                {attachmentsLoading ? (
+                  <View style={styles.messagesLoading}>
+                    <Text style={styles.loadingText}>Načítání příloh...</Text>
+                  </View>
+                ) : (
+                  <AttachmentsGrid
+                    items={attachments.map(a => ({ id: a.id, uri: a.url, url: a.url, fileName: a.file_name, contentType: a.content_type }))}
+                    onPreview={(idx) => {
+                      const a = attachments[idx];
+                      if (!a || !a.content_type?.startsWith('image/')) return;
+                      // Find index in allImages
+                      const imageIndex = allImages.findIndex(img => img.uri === a.url);
+                      if (imageIndex >= 0) {
+                        setPreviewIndex(imageIndex);
+                        setShowPreview(true);
+                      }
+                    }}
+                    onRemove={(idx) => {
+                      const a = attachments[idx];
+                      if (!a) return;
+                      deleteAttachment(a.id);
+                    }}
                   />
                 )}
-                
-                {requests.length > 0 && (
-                  <View style={styles.requestInfo}>
-                    {(() => {
-                      const openRequests = requests.filter(r => r.status === 'open');
-                      const closedRequests = requests.filter(r => r.status === 'closed');
-                      const requestToShow = openRequests[0] || closedRequests[0];
-                      
-                      // Get unique service names from open requests
-                      const serviceNames = openRequests
-                        .map(r => (r as any).services?.name)
-                        .filter(Boolean)
-                        .filter((name, index, self) => self.indexOf(name) === index); // Remove duplicates
-                      
-                      return (
-                        <>
-                          {openRequests.length > 0 && (
-                            <View style={styles.servicesList}>
-                              <Text style={styles.requestInfoLabel}>Poptávané služby:</Text>
-                              <View style={styles.servicesTags}>
-                                {serviceNames.map((serviceName, index) => (
-                                  <View key={index} style={styles.serviceTag}>
-                                    <Text style={styles.serviceTagText}>{serviceName}</Text>
-                                  </View>
-                                ))}
-                              </View>
-                            </View>
-                          )}
-                          {closedRequests.length > 0 && openRequests.length === 0 && (
-                            <Text style={styles.requestInfoText}>
-                              Poptávka byla uzavřena. Zobrazte přihlášky pro pokračování.
-                            </Text>
-                          )}
-                          {requestToShow && (
-                            <Button
-                              title={openRequests.length > 0 ? "Zobrazit přihlášky" : "Pokračovat s výběrem"}
-                              onPress={() => {
-                                navigation.navigate('ServiceApplications', {
-                                  requestId: requestToShow.id,
-                                  issueId,
-                                });
-                              }}
-                              variant="outline"
-                              style={styles.button}
-                            />
-                          )}
-                          <Button
-                            title="Přidat další službu"
-                            onPress={() => navigation.navigate('ServiceRequest', { issueId })}
-                            variant="outline"
-                            style={styles.button}
-                          />
-                          <Button
-                            title="Zrušit výběr dodavatele"
-                            onPress={() => setShowCancelProviderModal(true)}
-                            variant="outline"
-                            style={styles.button}
-                          />
-                        </>
-                      );
-                    })()}
+              </View>
+            </Card>
+
+            {/* Messages */}
+            <Card style={styles.cardSpacing}>
+              <Text style={styles.sectionLabel}>Komunikace</Text>
+              {messagesLoading ? (
+                <View style={styles.messagesLoading}>
+                  <Text style={styles.loadingText}>Načítání zpráv...</Text>
+                </View>
+              ) : messages.length === 0 ? (
+                <View style={styles.emptyMessages}>
+                  <Text style={styles.emptyMessagesText}>Zatím žádné zprávy</Text>
+                </View>
+              ) : (
+                messages.map((m) => {
+                  const isMine = user && m.user_id === user.id;
+                  return (
+                    <View key={m.id} style={[styles.messageRow, { alignItems: 'flex-start' }]}>
+                      <View style={[styles.messageBubble, isMine && styles.messageBubbleMine, isMine ? { marginLeft: 15, marginRight: 0 } : { marginRight: 15, marginLeft: 0 }]}>
+                        {m.attachment_url ? (
+                          <TouchableOpacity onPress={() => {
+                            const imageIndex = allImages.findIndex(img => img.uri === m.attachment_url);
+                            if (imageIndex >= 0) {
+                              setPreviewIndex(imageIndex);
+                              setShowPreview(true);
+                            }
+                          }}>
+                            <Image source={{ uri: m.attachment_url }} style={styles.messageImage} />
+                          </TouchableOpacity>
+                        ) : null}
+                        {m.content ? <Text style={styles.messageText}>{m.content}</Text> : null}
+                        <View style={styles.messageMetaRow}>
+                          <Text style={styles.messageMetaLeft}>
+                            od: {isMine ? 'já' : 'uživatel'}
+                          </Text>
+                          <Text style={styles.messageMetaRight}>
+                            {new Date(m.created_at).toLocaleTimeString()}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </Card>
+
+            {localImage ? (
+              <View style={styles.preview}>
+                <Image source={{ uri: localImage }} style={styles.previewImage} />
+                <TouchableOpacity onPress={() => {
+                  setLocalImage(null);
+                  setLocalImageBase64(null);
+                }}>
+                  <Text style={styles.removePreview}>Odebrat</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {/* Only show composer if user is not a provider, or if provider has applied */}
+            {(!isProviderView || canProviderComment) && (
+              <View style={styles.composer}>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Napište zprávu…"
+                    value={messageText}
+                    onChangeText={setMessageText}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                  />
+                  <View style={styles.inputIcons}>
+                    <TouchableOpacity
+                      style={styles.attachButtonInline}
+                      onPress={async () => {
+                        const ok = await ensureMediaLibraryPermission();
+                        if (!ok) return;
+                        const res = await ImagePicker.launchImageLibraryAsync({
+                          allowsEditing: false,
+                          quality: 0.8,
+                          base64: true,
+                        });
+                        if (!res.canceled) {
+                          setLocalImage(res.assets[0].uri);
+                          setLocalImageBase64(res.assets[0].base64 || null);
+                        }
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="image-outline" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.attachButtonInline}
+                      onPress={async () => {
+                        const ok = await ensureCameraPermission();
+                        if (!ok) return;
+                        const res = await ImagePicker.launchCameraAsync({
+                          allowsEditing: false,
+                          quality: 0.8,
+                          base64: true,
+                        });
+                        if (!res.canceled) {
+                          setLocalImage(res.assets[0].uri);
+                          setLocalImageBase64(res.assets[0].base64 || null);
+                        }
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="camera-outline" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.sendButton, sendingMessage && styles.sendButtonDisabled]}
+                      onPress={handleSendMessage}
+                      disabled={sendingMessage || (!messageText.trim() && !localImage)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      {sendingMessage ? (
+                        <Ionicons name="hourglass-outline" size={20} color={colors.textOnPrimary} />
+                      ) : (
+                        <Ionicons name="paper-plane" size={20} color={colors.textOnPrimary} />
+                      )}
+                    </TouchableOpacity>
                   </View>
-                )}
-              </>
+                </View>
+              </View>
             )}
 
-            {/* Only show assigned provider section if:
+            {/* Status buttons removed - moved to header dropdown */}
+
+            {/* Service Provider Section */}
+            {issue && (
+              <Card style={styles.cardSpacing}>
+                {/* Only show title and WorkflowStepper for admins/owners, not for providers */}
+                {!isProviderView && !isProviderSelectionCancelled && (
+                  <>
+                    <Text style={styles.sectionLabel}>Dodavatel a termín</Text>
+                    <WorkflowStepper
+                      currentStep={
+                        issue.status === 'resolved' || issue.status === 'closed' ? 'completed' :
+                          issue.selected_appointment_id ? 'repair' :
+                            issue.assigned_provider_id ? 'appointment' :
+                              requests.length > 0 ? 'selection' : 'request'
+                      }
+                    />
+                  </>
+                )}
+
+                {!issue.assigned_provider_id && isAdminOrOwner && !isProviderSelectionCancelled && (
+                  <>
+                    {requests.length === 0 && (
+                      <Button
+                        title="Poptat dodavatele"
+                        onPress={() => navigation.navigate('ServiceRequest', { issueId })}
+                        style={styles.button}
+                      />
+                    )}
+
+                    {requests.length > 0 && (
+                      <View style={styles.requestInfo}>
+                        {(() => {
+                          const openRequests = requests.filter(r => r.status === 'open');
+                          const closedRequests = requests.filter(r => r.status === 'closed');
+                          const requestToShow = openRequests[0] || closedRequests[0];
+
+                          // Get unique service names from open requests
+                          const serviceNames = openRequests
+                            .map(r => (r as any).services?.name)
+                            .filter(Boolean)
+                            .filter((name, index, self) => self.indexOf(name) === index); // Remove duplicates
+
+                          return (
+                            <>
+                              {openRequests.length > 0 && (
+                                <View style={styles.servicesList}>
+                                  <Text style={styles.requestInfoLabel}>Poptávané služby:</Text>
+                                  <View style={styles.servicesTags}>
+                                    {serviceNames.map((serviceName, index) => (
+                                      <View key={index} style={styles.serviceTag}>
+                                        <Text style={styles.serviceTagText}>{serviceName}</Text>
+                                      </View>
+                                    ))}
+                                  </View>
+                                </View>
+                              )}
+                              {closedRequests.length > 0 && openRequests.length === 0 && (
+                                <Text style={styles.requestInfoText}>
+                                  Poptávka byla uzavřena. Zobrazte přihlášky pro pokračování.
+                                </Text>
+                              )}
+                              {requestToShow && (
+                                <Button
+                                  title={openRequests.length > 0 ? "Zobrazit přihlášky" : "Pokračovat s výběrem"}
+                                  onPress={() => {
+                                    navigation.navigate('ServiceApplications', {
+                                      requestId: requestToShow.id,
+                                      issueId,
+                                    });
+                                  }}
+                                  variant="outline"
+                                  style={styles.button}
+                                />
+                              )}
+                              <Button
+                                title="Přidat další službu"
+                                onPress={() => navigation.navigate('ServiceRequest', { issueId })}
+                                variant="outline"
+                                style={styles.button}
+                              />
+                              <Button
+                                title="Zrušit výběr dodavatele"
+                                onPress={() => setShowCancelProviderModal(true)}
+                                variant="outline"
+                                style={styles.button}
+                              />
+                            </>
+                          );
+                        })()}
+                      </View>
+                    )}
+                  </>
+                )}
+
+                {/* Only show assigned provider section if:
                 1. User is admin/owner (not provider view), OR
                 2. Provider is viewing and they are the assigned provider (for this issue) */}
-            {issue.assigned_provider_id && assignedProvider && (
-              (!isProviderView || (isProviderView && issue.assigned_provider_id === user?.id)) && (
-                <View style={styles.providerSection}>
-                  <ServiceProviderCard
-                    provider={assignedProvider}
-                    showSelectButton={false}
-                    showContactButton={true}
-                  />
-                  {!issue.selected_appointment_id && issue.assigned_provider_id === user?.id && (
-                    <Button
-                      title="Navrhnout termín"
-                      onPress={() => navigation.navigate('AppointmentSelection', {
-                        issueId,
-                        providerId: issue.assigned_provider_id!,
-                      })}
-                      style={styles.button}
-                    />
-                  )}
-                  {isAdminOrOwner && (
-                    <Button
-                      title="Zrušit výběr dodavatele"
-                      onPress={() => setShowCancelProviderModal(true)}
-                      variant="outline"
-                      style={styles.button}
-                    />
-                  )}
-                </View>
-              )
-            )}
-
-            {/* Show message if provider selection was cancelled */}
-            {isProviderSelectionCancelled && !issue.assigned_provider_id && isAdminOrOwner && (
-              <View style={styles.cancelledInfo}>
-                <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
-                <Text style={styles.cancelledInfoText}>
-                  Výběr dodavatele byl zrušen. Pro tuto závadu již není možné znovu vybrat dodavatele.
-                </Text>
-              </View>
-            )}
-
-            {/* Provider Application Section */}
-            {currentProvider && openRequest && !issue.assigned_provider_id && (
-              <View style={styles.providerApplicationSection}>
-                {(openRequest as any).services && (
-                  <View style={styles.requestInfoCard}>
-                    <View style={styles.requestInfoRow}>
-                      <Ionicons name="construct-outline" size={20} color={colors.primary} />
-                      <Text style={styles.requestServiceName}>
-                        {(openRequest as any).services.name}
-                      </Text>
+                {issue.assigned_provider_id && assignedProvider && (
+                  (!isProviderView || (isProviderView && issue.assigned_provider_id === user?.id)) && (
+                    <View style={styles.providerSection}>
+                      <ServiceProviderCard
+                        provider={assignedProvider}
+                        showSelectButton={false}
+                        showContactButton={true}
+                      />
+                      {!issue.selected_appointment_id && issue.assigned_provider_id === user?.id && (
+                        <Button
+                          title="Navrhnout termín"
+                          onPress={() => navigation.navigate('AppointmentSelection', {
+                            issueId,
+                            providerId: issue.assigned_provider_id!,
+                          })}
+                          style={styles.button}
+                        />
+                      )}
+                      {isAdminOrOwner && (
+                        <Button
+                          title="Zrušit výběr dodavatele"
+                          onPress={() => setShowCancelProviderModal(true)}
+                          variant="outline"
+                          style={styles.button}
+                        />
+                      )}
                     </View>
-                    {(() => {
-                      const hasActiveService = registrations.some(
-                        reg => reg.service_id === openRequest.service_id &&
-                        reg.status === 'active' &&
-                        (!reg.paid_until || new Date(reg.paid_until) > new Date())
-                      );
-                      
-                      if (!hasActiveService) {
-                        return (
-                          <View style={styles.warningBox}>
-                            <Ionicons name="warning-outline" size={16} color={colors.warning} />
-                            <Text style={styles.warningText}>
-                              Nemáte aktivní registraci pro tuto službu. Zaregistrujte se nejprve v sekci "Moje služby".
-                            </Text>
-                          </View>
-                        );
-                      }
+                  )
+                )}
 
-                      if (hasApplied) {
-                        return (
-                          <View style={styles.appliedBox}>
-                            <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
-                            <Text style={styles.appliedText}>
-                              Již jste se k této poptávce přihlásili. Čekáte na rozhodnutí.
-                            </Text>
-                          </View>
-                        );
-                      }
-
-                      return (
-                        <>
-                          <Button
-                            title="Přihlásit se k poptávce"
-                            onPress={() => {
-                              setShowApplicationModal(true);
-                            }}
-                            loading={applicationsLoading}
-                            style={styles.button}
-                          />
-                        </>
-                      );
-                    })()}
+                {/* Show message if provider selection was cancelled */}
+                {isProviderSelectionCancelled && !issue.assigned_provider_id && isAdminOrOwner && (
+                  <View style={styles.cancelledInfo}>
+                    <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+                    <Text style={styles.cancelledInfoText}>
+                      Výběr dodavatele byl zrušen. Pro tuto závadu již není možné znovu vybrat dodavatele.
+                    </Text>
                   </View>
                 )}
-              </View>
-            )}
 
-            {appointments.length > 0 && (
-              <View style={styles.appointmentsSection}>
-                <Text style={styles.sectionLabel}>Termíny</Text>
-                {appointments.slice(0, 3).map((appointment) => (
-                  <TouchableOpacity
-                    key={appointment.id}
-                    onPress={() => navigation.navigate('AppointmentSelection', {
-                      issueId,
-                      providerId: appointment.provider_id,
-                    })}
-                  >
-                    <Text style={styles.appointmentText}>
-                      {appointment.proposed_date} {appointment.proposed_time}
-                      {appointment.status === 'confirmed' && ' ✓'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                {appointments.length > 3 && (
-                  <Button
-                    title="Zobrazit všechny termíny"
-                    onPress={() => navigation.navigate('AppointmentSelection', {
-                      issueId,
-                      providerId: issue.assigned_provider_id || undefined,
-                    })}
-                    variant="outline"
-                    style={styles.button}
-                  />
+                {/* Provider Application Section */}
+                {currentProvider && openRequest && !issue.assigned_provider_id && (
+                  <View style={styles.providerApplicationSection}>
+                    {(openRequest as any).services && (
+                      <View style={styles.requestInfoCard}>
+                        <View style={styles.requestInfoRow}>
+                          <Ionicons name="construct-outline" size={20} color={colors.primary} />
+                          <Text style={styles.requestServiceName}>
+                            {(openRequest as any).services.name}
+                          </Text>
+                        </View>
+                        {(() => {
+                          const hasActiveService = registrations.some(
+                            reg => reg.service_id === openRequest.service_id &&
+                              reg.status === 'active' &&
+                              (!reg.paid_until || new Date(reg.paid_until) > new Date())
+                          );
+
+                          if (!hasActiveService) {
+                            return (
+                              <View style={styles.warningBox}>
+                                <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                                <Text style={styles.warningText}>
+                                  Nemáte aktivní registraci pro tuto službu. Zaregistrujte se nejprve v sekci "Moje služby".
+                                </Text>
+                              </View>
+                            );
+                          }
+
+                          if (hasApplied) {
+                            return (
+                              <View style={styles.appliedBox}>
+                                <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
+                                <Text style={styles.appliedText}>
+                                  Již jste se k této poptávce přihlásili. Čekáte na rozhodnutí.
+                                </Text>
+                              </View>
+                            );
+                          }
+
+                          return (
+                            <>
+                              <Button
+                                title="Přihlásit se k poptávce"
+                                onPress={() => {
+                                  setShowApplicationModal(true);
+                                }}
+                                loading={applicationsLoading}
+                                style={styles.button}
+                              />
+                            </>
+                          );
+                        })()}
+                      </View>
+                    )}
+                  </View>
                 )}
-              </View>
+
+                {appointments.length > 0 && (
+                  <View style={styles.appointmentsSection}>
+                    <Text style={styles.sectionLabel}>Termíny</Text>
+                    {appointments.slice(0, 3).map((appointment) => (
+                      <TouchableOpacity
+                        key={appointment.id}
+                        onPress={() => navigation.navigate('AppointmentSelection', {
+                          issueId,
+                          providerId: appointment.provider_id,
+                        })}
+                      >
+                        <Text style={styles.appointmentText}>
+                          {appointment.proposed_date} {appointment.proposed_time}
+                          {appointment.status === 'confirmed' && ' ✓'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                    {appointments.length > 3 && (
+                      <Button
+                        title="Zobrazit všechny termíny"
+                        onPress={() => navigation.navigate('AppointmentSelection', {
+                          issueId,
+                          providerId: issue.assigned_provider_id || undefined,
+                        })}
+                        variant="outline"
+                        style={styles.button}
+                      />
+                    )}
+                  </View>
+                )}
+              </Card>
             )}
-          </Card>
+          </ScrollView>
+        </KeyboardAvoidingView>
+        {/* Image preview modal with zoom */}
+        {allImages.length > 0 && (
+          <ImageViewing
+            images={allImages}
+            imageIndex={previewIndex ?? 0}
+            visible={showPreview && previewIndex !== null}
+            onRequestClose={() => {
+              setShowPreview(false);
+              setPreviewIndex(null);
+            }}
+            swipeToCloseEnabled={true}
+            doubleTapToZoomEnabled={true}
+          />
         )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-      {/* Image preview modal with zoom */}
-      {allImages.length > 0 && (
-        <ImageViewing
-          images={allImages}
-          imageIndex={previewIndex ?? 0}
-          visible={showPreview && previewIndex !== null}
-          onRequestClose={() => {
-            setShowPreview(false);
-            setPreviewIndex(null);
-          }}
-          swipeToCloseEnabled={true}
-          doubleTapToZoomEnabled={true}
-        />
-      )}
 
-      {/* Priority picker modal */}
-      {issue && (
-        <PriorityPickerModal
-          visible={showPriorityPicker}
-          currentPriority={issue.priority as IssuePriority}
-          onSelect={async (priority: IssuePriority) => {
-            try {
-              setUpdating(true);
-              const updated = await updateIssue(issueId, { priority });
-              if (updated) {
-                // Update local state immediately
-                setIssue((prev) => (prev ? { ...prev, priority } : null));
-                // Close the modal
-                setShowPriorityPicker(false);
-                // Refresh the issue to ensure we have the latest data from DB
-                await fetchIssue();
+        {/* Priority picker modal */}
+        {issue && (
+          <PriorityPickerModal
+            visible={showPriorityPicker}
+            currentPriority={issue.priority as IssuePriority}
+            onSelect={async (priority: IssuePriority) => {
+              try {
+                setUpdating(true);
+                const updated = await updateIssue(issueId, { priority });
+                if (updated) {
+                  // Update local state immediately
+                  setIssue((prev) => (prev ? { ...prev, priority } : null));
+                  // Close the modal
+                  setShowPriorityPicker(false);
+                  // Refresh the issue to ensure we have the latest data from DB
+                  await fetchIssue();
+                }
+              } catch (error: any) {
+                console.error('Error updating priority:', error);
+                Alert.alert('Chyba', error?.message || 'Nepodařilo se změnit prioritu.');
+              } finally {
+                setUpdating(false);
               }
-            } catch (error: any) {
-              console.error('Error updating priority:', error);
-              Alert.alert('Chyba', error?.message || 'Nepodařilo se změnit prioritu.');
-            } finally {
-              setUpdating(false);
-            }
-          }}
-          onClose={() => setShowPriorityPicker(false)}
+            }}
+            onClose={() => setShowPriorityPicker(false)}
+          />
+        )}
+
+        {/* Application modal */}
+        <Modal visible={showApplicationModal} transparent animationType="slide" onRequestClose={() => setShowApplicationModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Přihláška k poptávce</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowApplicationModal(false);
+                  setApplicationComment('');
+                }}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalDescription}>
+                Chcete přidat komentář k vaší přihlášce? (volitelné)
+              </Text>
+              <TextInput
+                style={styles.inputReason}
+                placeholder="Komentář k přihlášce..."
+                value={applicationComment}
+                onChangeText={setApplicationComment}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+              <View style={styles.modalButtons}>
+                <Button
+                  title="Přihlásit"
+                  onPress={async () => {
+                    if (!openRequest) return;
+                    try {
+                      await createApplication({
+                        request_id: openRequest.id,
+                        message: applicationComment.trim() || undefined,
+                      });
+                      setShowApplicationModal(false);
+                      setApplicationComment('');
+                      Alert.alert(
+                        'Hotovo',
+                        'Vaše přihláška byla úspěšně odeslána!',
+                        [{ text: 'OK' }]
+                      );
+                      refetchApplications();
+                    } catch (error: any) {
+                      Alert.alert('Chyba', error.message || 'Nepodařilo se přihlásit k poptávce.');
+                    }
+                  }}
+                  style={styles.modalButton}
+                  loading={applicationsLoading}
+                  disabled={applicationsLoading}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Delete reason modal */}
+        <Modal visible={showDeleteModal} transparent animationType="slide" onRequestClose={() => setShowDeleteModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Smazat závadu</Text>
+                <TouchableOpacity onPress={() => setShowDeleteModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalDescription}>Uveďte prosím důvod zrušení. Důvod se uloží do komunikace.</Text>
+              <TextInput
+                style={styles.inputReason}
+                placeholder="Důvod zrušení"
+                value={deleteReason}
+                onChangeText={setDeleteReason}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+              <View style={styles.modalButtons}>
+                <Button title="Zrušit" variant="outline" onPress={() => setShowDeleteModal(false)} style={styles.modalButton} />
+                <Button
+                  title="Smazat"
+                  variant="danger"
+                  onPress={async () => {
+                    if (!deleteReason.trim()) return;
+                    if (!isAdminOrOwner) {
+                      Alert.alert('Chyba', 'Nemáte oprávnění smazat závadu. Pouze vlastník nebo správce nemovitosti může mazat závady.');
+                      return;
+                    }
+                    try {
+                      await sendMessage(`[Smazáno] ${deleteReason.trim()}`, null);
+                    } catch { }
+                    try {
+                      await deleteIssue(issueId);
+                      setShowDeleteModal(false);
+                      navigation.goBack();
+                    } catch (e) {
+                      Alert.alert('Chyba', 'Nepodařilo se smazat závadu.');
+                    }
+                  }}
+                  style={styles.modalButton}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Cancel provider selection modal */}
+        <Modal visible={showCancelProviderModal} transparent animationType="slide" onRequestClose={() => {
+          setShowCancelProviderModal(false);
+          setCancelProviderReason('');
+        }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Zrušit výběr dodavatele</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowCancelProviderModal(false);
+                  setCancelProviderReason('');
+                }}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalDescription}>
+                Uveďte prosím odůvodnění zrušení výběru dodavatele. Odůvodnění se uloží do komunikace a pro tuto závadu již nebude možné znovu vybrat dodavatele.
+              </Text>
+              <TextInput
+                style={styles.inputReason}
+                placeholder="Odůvodnění zrušení výběru..."
+                value={cancelProviderReason}
+                onChangeText={setCancelProviderReason}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+              <View style={styles.modalButtons}>
+                <Button
+                  title="Zrušit výběr"
+                  variant="danger"
+                  onPress={handleCancelProviderSelection}
+                  style={styles.modalButton}
+                  loading={cancellingProvider}
+                  disabled={cancellingProvider || !cancelProviderReason.trim()}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+        <StatusPickerModal
+          visible={showStatusPicker}
+          currentStatus={issue.status}
+          availableStatuses={availableStatuses}
+          onSelect={handleStatusChange}
+          onClose={() => setShowStatusPicker(false)}
         />
-      )}
-
-      {/* Application modal */}
-      <Modal visible={showApplicationModal} transparent animationType="slide" onRequestClose={() => setShowApplicationModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Přihláška k poptávce</Text>
-              <TouchableOpacity onPress={() => {
-                setShowApplicationModal(false);
-                setApplicationComment('');
-              }}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalDescription}>
-              Chcete přidat komentář k vaší přihlášce? (volitelné)
-            </Text>
-            <TextInput
-              style={styles.inputReason}
-              placeholder="Komentář k přihlášce..."
-              value={applicationComment}
-              onChangeText={setApplicationComment}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            <View style={styles.modalButtons}>
-              <Button
-                title="Přihlásit"
-                onPress={async () => {
-                  if (!openRequest) return;
-                  try {
-                    await createApplication({
-                      request_id: openRequest.id,
-                      message: applicationComment.trim() || undefined,
-                    });
-                    setShowApplicationModal(false);
-                    setApplicationComment('');
-                    Alert.alert(
-                      'Hotovo',
-                      'Vaše přihláška byla úspěšně odeslána!',
-                      [{ text: 'OK' }]
-                    );
-                    refetchApplications();
-                  } catch (error: any) {
-                    Alert.alert('Chyba', error.message || 'Nepodařilo se přihlásit k poptávce.');
-                  }
-                }}
-                style={styles.modalButton}
-                loading={applicationsLoading}
-                disabled={applicationsLoading}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Delete reason modal */}
-      <Modal visible={showDeleteModal} transparent animationType="slide" onRequestClose={() => setShowDeleteModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Smazat závadu</Text>
-              <TouchableOpacity onPress={() => setShowDeleteModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalDescription}>Uveďte prosím důvod zrušení. Důvod se uloží do komunikace.</Text>
-            <TextInput
-              style={styles.inputReason}
-              placeholder="Důvod zrušení"
-              value={deleteReason}
-              onChangeText={setDeleteReason}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-            <View style={styles.modalButtons}>
-              <Button title="Zrušit" variant="outline" onPress={() => setShowDeleteModal(false)} style={styles.modalButton} />
-              <Button
-                title="Smazat"
-                variant="danger"
-                onPress={async () => {
-                  if (!deleteReason.trim()) return;
-                  if (!isAdminOrOwner) {
-                    Alert.alert('Chyba', 'Nemáte oprávnění smazat závadu. Pouze vlastník nebo správce nemovitosti může mazat závady.');
-                    return;
-                  }
-                  try {
-                    await sendMessage(`[Smazáno] ${deleteReason.trim()}`, null);
-                  } catch {}
-                  try {
-                    await deleteIssue(issueId);
-                    setShowDeleteModal(false);
-                    navigation.goBack();
-                  } catch (e) {
-                    Alert.alert('Chyba', 'Nepodařilo se smazat závadu.');
-                  }
-                }}
-                style={styles.modalButton}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Cancel provider selection modal */}
-      <Modal visible={showCancelProviderModal} transparent animationType="slide" onRequestClose={() => {
-        setShowCancelProviderModal(false);
-        setCancelProviderReason('');
-      }}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Zrušit výběr dodavatele</Text>
-              <TouchableOpacity onPress={() => {
-                setShowCancelProviderModal(false);
-                setCancelProviderReason('');
-              }}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalDescription}>
-              Uveďte prosím odůvodnění zrušení výběru dodavatele. Odůvodnění se uloží do komunikace a pro tuto závadu již nebude možné znovu vybrat dodavatele.
-            </Text>
-            <TextInput
-              style={styles.inputReason}
-              placeholder="Odůvodnění zrušení výběru..."
-              value={cancelProviderReason}
-              onChangeText={setCancelProviderReason}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            <View style={styles.modalButtons}>
-              <Button
-                title="Zrušit výběr"
-                variant="danger"
-                onPress={handleCancelProviderSelection}
-                style={styles.modalButton}
-                loading={cancellingProvider}
-                disabled={cancellingProvider || !cancelProviderReason.trim()}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -1090,71 +1088,76 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scrollContent: {
-    padding: spacing.xl,
+    padding: spacing.md,
+    paddingBottom: 100,
   },
   header: {
     marginBottom: 20,
   },
   headerTop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    alignItems: 'flex-start',
+    marginBottom: spacing.sm,
   },
   titleRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    flex: 1,
     marginRight: spacing.sm,
   },
   title: {
-    fontSize: fontSize.xxl,
+    fontSize: 20,
     fontWeight: fontWeight.bold,
     color: colors.text,
-    lineHeight: 32,
     flex: 1,
   },
   deleteIconButton: {
-    padding: spacing.xs,
+    padding: 4,
   },
   badges: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.md,
   },
   badge: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 14,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   badgeText: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
     color: colors.textOnPrimary,
-    textTransform: 'uppercase',
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
   },
   section: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    marginTop: spacing.lg,
   },
   sectionLabel: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   description: {
-    fontSize: 15,
-    color: '#3A3A3C',
+    fontSize: fontSize.md,
+    color: colors.text,
     lineHeight: 22,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   detailLabel: {
     fontSize: fontSize.sm,
@@ -1162,32 +1165,35 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
     color: colors.text,
+    fontWeight: fontWeight.medium,
   },
   actionsSection: {
     marginTop: spacing.xl,
   },
   actionsLabel: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.md,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    textTransform: 'uppercase',
   },
   statusButtons: {
     flexDirection: 'row',
-    gap: spacing.md,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   statusButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    minWidth: 100,
     alignItems: 'center',
   },
   statusButtonText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
     color: colors.textOnPrimary,
+    fontWeight: fontWeight.bold,
+    fontSize: fontSize.sm,
   },
   dangerZone: {
     marginTop: 40,
@@ -1197,49 +1203,60 @@ const styles = StyleSheet.create({
   },
   messageRow: {
     marginBottom: spacing.md,
+    width: '100%',
   },
   messageBubble: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     padding: spacing.md,
+    maxWidth: '85%',
     borderWidth: 1,
     borderColor: colors.border,
-    width: '100%',
   },
   messageText: {
+    fontSize: fontSize.md,
     color: colors.text,
-    marginBottom: 6,
+    lineHeight: 20,
   },
   messageMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginTop: 4,
   },
   messageMetaLeft: {
+    fontSize: 10,
     color: colors.textSecondary,
-    fontSize: fontSize.xs,
+    marginRight: 8,
   },
   messageMetaRight: {
+    fontSize: 10,
     color: colors.textSecondary,
-    fontSize: fontSize.xs,
   },
   messageBubbleMine: {
-    backgroundColor: '#e7f8ee',
-    borderColor: '#bfead1',
+    backgroundColor: colors.primaryLight,
+    borderColor: 'transparent',
+    alignSelf: 'flex-end',
   },
   messageTime: {
     color: colors.textSecondary,
     fontSize: fontSize.xs,
   },
   messageImage: {
-    width: '100%',
-    height: 180,
+    width: 200,
+    height: 150,
     borderRadius: 8,
-    marginBottom: spacing.sm,
+    marginBottom: 8,
   },
   composer: {
-    paddingVertical: spacing.md,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    padding: spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 30 : spacing.md,
   },
   inputContainer: {
     position: 'relative',
@@ -1248,24 +1265,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    paddingRight: 80, // Space for icons
-    paddingBottom: 45, // Space for icons at bottom
-    minHeight: 100,
-    maxHeight: 200,
+    backgroundColor: colors.background,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingRight: 100, // space for icons
+    minHeight: 40,
+    maxHeight: 100,
+    fontSize: fontSize.md,
+    color: colors.text,
   },
   inputIcons: {
     position: 'absolute',
-    right: 8,
-    bottom: 8,
+    right: 4,
+    bottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: 4,
   },
   attachButtonInline: {
     width: 32,
@@ -1274,17 +1291,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryLight,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   sendButtonDisabled: {
     opacity: 0.5,
@@ -1307,24 +1319,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statusSection: {
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xl,
   },
   cardSpacing: {
     marginTop: spacing.md,
   },
   preview: {
-    marginTop: spacing.sm,
-    alignItems: 'flex-start',
-    gap: spacing.xs,
+    position: 'absolute',
+    bottom: 80,
+    left: spacing.md,
+    backgroundColor: colors.surface,
+    padding: 8,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   previewImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 8,
+    width: 80,
+    height: 80,
+    borderRadius: 4,
   },
   removePreview: {
     color: colors.error,
-    marginTop: 6,
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
   messagesLoading: {
     padding: spacing.xl,
@@ -1332,7 +1356,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
   },
   emptyMessages: {
     padding: spacing.xl,
@@ -1340,7 +1363,6 @@ const styles = StyleSheet.create({
   },
   emptyMessagesText: {
     color: colors.textSecondary,
-    fontSize: fontSize.sm,
     fontStyle: 'italic',
   },
   previewOverlay: {
@@ -1419,12 +1441,12 @@ const styles = StyleSheet.create({
   requestInfo: {
     marginTop: spacing.md,
     padding: spacing.md,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderRadius: borderRadius.md,
   },
   requestInfoText: {
     fontSize: fontSize.md,
-    color: colors.textSecondary,
+    color: colors.text,
     marginBottom: spacing.sm,
   },
   requestInfoLabel: {

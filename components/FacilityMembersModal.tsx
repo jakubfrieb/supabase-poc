@@ -133,7 +133,7 @@ export function FacilityMembersModal({ visible, facilityId, onClose }: FacilityM
             </TouchableOpacity>
           )}
         </View>
-        
+
         <View style={styles.roleContainer}>
           <Text style={styles.roleLabel}>Role:</Text>
           {isOwner ? (

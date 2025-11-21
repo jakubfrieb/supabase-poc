@@ -67,7 +67,13 @@
     "reportedBy": "Nahlášeno:",
     "created": "Vytvořeno",
     "lastUpdated": "Poslední aktualizace",
-    "statusUpdated": "Stav závady byl aktualizován"
+    "statusUpdated": "Stav závady byl aktualizován",
+    "createSuccess": "Závada byla úspěšně vytvořena",
+    "createError": "Nepodařilo se vytvořit závadu. Zkuste to prosím znovu.",
+    "titleRequired": "Zadejte název závady",
+    "accessDenied": "Přístup zamítnut",
+    "galleryPermission": "Pro přidání fotky povolte přístup ke galerii.",
+    "cameraPermission": "Pro pořízení fotky povolte přístup ke kameře."
   },
   "profile": {
     "title": "Profil",

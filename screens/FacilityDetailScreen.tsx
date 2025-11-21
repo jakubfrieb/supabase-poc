@@ -17,6 +17,7 @@ import { PriorityBadge } from '../components/PriorityBadge';
 import { UserAvatar } from '../components/UserAvatar';
 import { useFacilityRole } from '../hooks/useFacilityRole';
 import { useFacilities } from '../hooks/useFacilities';
+import { FacilityNotesModal } from '../components/FacilityNotesModal';
 // Import expo-print with error handling for native module
 let Print: typeof import('expo-print') | null = null;
 try {
@@ -70,14 +71,14 @@ export function FacilityDetailScreen() {
   // Fetch open requests for all issues to show hammer icon
   const fetchOpenRequests = useCallback(async (issueIds: string[]) => {
     if (!facilityId || issueIds.length === 0) return;
-    
+
     try {
       const { data: requests } = await supabase
         .from('issue_service_requests')
         .select('issue_id')
         .in('issue_id', issueIds)
         .eq('status', 'open');
-      
+
       const map: Record<string, boolean> = {};
       requests?.forEach(req => {
         if (req.issue_id) {
@@ -118,7 +119,7 @@ export function FacilityDetailScreen() {
 
       if (error) throw error;
       setFacility(data);
-      
+
       // Fetch or create invite code
       await fetchInviteCode();
     } catch (error) {
@@ -191,11 +192,11 @@ export function FacilityDetailScreen() {
     setNotesModalVisible(true);
   };
 
-  const handleSaveNotes = async () => {
+  const handleSaveNotes = async (notes: string) => {
     if (!facility) return;
     try {
       await updateFacility(facility.id, {
-        notes: editingNotes.trim() || null,
+        notes: notes.trim() || null,
       } as any);
       await fetchFacility();
       setNotesModalVisible(false);
@@ -203,6 +204,7 @@ export function FacilityDetailScreen() {
       Alert.alert('Hotovo', 'Poznámky byly uloženy.');
     } catch (error) {
       Alert.alert('Chyba', 'Nepodařilo se uložit poznámky.');
+      throw error; // Re-throw for modal to handle loading state if needed
     }
   };
 
@@ -216,7 +218,7 @@ export function FacilityDetailScreen() {
 
   const getPriorityBadge = (priority: string) => {
     return (
-      <PriorityBadge 
+      <PriorityBadge
         priority={priority as any}
         showText={true}
         size="small"
@@ -229,7 +231,7 @@ export function FacilityDetailScreen() {
     const openIssues = issues.filter(
       issue => issue.status === 'open' || issue.status === 'in_progress'
     );
-    
+
     const priorities: IssuePriority[] = ['idea', 'normal', 'high', 'critical', 'urgent'];
     const counts: Record<IssuePriority, number> = {
       idea: 0,
@@ -252,17 +254,17 @@ export function FacilityDetailScreen() {
   // Filter issues based on filterStatus and filterPriority
   const filteredIssues = useMemo(() => {
     let filtered = issues;
-    
+
     // Filter by status
     if (filterStatus === 'open') {
       filtered = filtered.filter(issue => issue.status !== 'closed');
     }
-    
+
     // Filter by priority if set
     if (filterPriority) {
       filtered = filtered.filter(issue => issue.priority === filterPriority);
     }
-    
+
     return filtered;
   }, [issues, filterStatus, filterPriority]);
 
@@ -270,16 +272,16 @@ export function FacilityDetailScreen() {
   const getSubscriptionInfo = () => {
     const subscriptionStatus = (facility as any)?.subscription_status;
     const paidUntil = (facility as any)?.paid_until;
-    
+
     // Žlutá/oranžová: pozastaveno
     if (subscriptionStatus === 'paused') {
-      return { 
-        text: 'Pozastaveno', 
+      return {
+        text: 'Pozastaveno',
         isDemo: false,
         iconColor: colors.warning // žlutá/oranžová
       };
     }
-    
+
     // Zelená: zaplaceno (active a paid_until v budoucnosti)
     if (subscriptionStatus === 'active' && paidUntil) {
       const paidUntilDate = new Date(paidUntil);
@@ -287,17 +289,17 @@ export function FacilityDetailScreen() {
       // Kontrola, zda je paid_until v budoucnosti
       if (paidUntilDate > now) {
         const daysLeft = Math.ceil((paidUntilDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        return { 
-          text: `${daysLeft} dní`, 
+        return {
+          text: `${daysLeft} dní`,
           isDemo: false,
           iconColor: colors.success // zelená
         };
       }
     }
-    
+
     // Červená: nezaplaceno nebo DEMO (pending, nebo active s vypršeným/chybějícím paid_until)
-    return { 
-      text: 'DEMO', 
+    return {
+      text: 'DEMO',
       isDemo: true,
       iconColor: colors.error // červená
     };
@@ -464,7 +466,7 @@ export function FacilityDetailScreen() {
           console.warn('Print failed, falling back to Share:', printError);
         }
       }
-      
+
       // Fallback to Share API
       await Share.share({
         message: `Pozvánka k připojení k nemovitosti ${facility.name}\n\nKód: ${inviteCode}\n\nPro připojení použijte tento kód v aplikaci nebo naskenujte QR kód.`,
@@ -478,8 +480,8 @@ export function FacilityDetailScreen() {
 
   if (loadingFacility) {
     return (
-      <ImageBackground 
-        source={require('../assets/background/theme_1.png')} 
+      <ImageBackground
+        source={require('../assets/background/theme_1.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
         imageStyle={styles.backgroundImageStyle}
@@ -494,466 +496,427 @@ export function FacilityDetailScreen() {
   }
 
   return (
-    <ImageBackground 
-      source={require('../assets/background/theme_1.png')} 
+    <ImageBackground
+      source={require('../assets/background/theme_1.png')}
       style={styles.backgroundImage}
       resizeMode="cover"
       imageStyle={styles.backgroundImageStyle}
     >
       <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.facilityInfo}>
-        <View style={styles.facilityHeader}>
-          {(facility?.address || facility?.description) && (
-            <TouchableOpacity
-              onPress={() => setAddressDescriptionExpanded(!addressDescriptionExpanded)}
-              style={styles.expandButton}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons 
-                name={addressDescriptionExpanded ? "chevron-up" : "chevron-down"} 
-                size={20} 
-                color={colors.textSecondary} 
-              />
-            </TouchableOpacity>
-          )}
-          <Text style={styles.facilityName}>{facility?.name}</Text>
-          {isAdminOrOwner && (
-            <View style={styles.headerIcons}>
-              {(() => {
-                const subInfo = getSubscriptionInfo();
-                return (
-                  <View style={styles.subscriptionIconContainer}>
-                    <Ionicons 
-                      name="cash-outline" 
-                      size={22} 
-                      color={subInfo.iconColor} 
-                    />
-                    <Text style={[styles.subscriptionIconText, { color: subInfo.iconColor }]}>
-                      {subInfo.text}
-                    </Text>
-                  </View>
-                );
-              })()}
+        <View style={styles.facilityInfo}>
+          <View style={styles.facilityHeader}>
+            {(facility?.address || facility?.description) && (
               <TouchableOpacity
-                onPress={handleEditNotes}
-                style={styles.notesButton}
+                onPress={() => setAddressDescriptionExpanded(!addressDescriptionExpanded)}
+                style={styles.expandButton}
+                activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons 
-                  name="document-text-outline" 
-                  size={22} 
-                  color={(facility as any)?.notes ? colors.primary : colors.textSecondary} 
+                <Ionicons
+                  name={addressDescriptionExpanded ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
-            </View>
-          )}
-        </View>
-        {addressDescriptionExpanded && (facility?.address || facility?.description) && (
-          <View style={styles.addressDescriptionContent}>
-            {facility?.address && (
-              <View style={styles.addressContainer}>
-                <Text style={styles.addressIcon}>📍</Text>
-                <TouchableOpacity 
-                  onPress={handleAddressPress}
-                  activeOpacity={0.7}
-                  style={styles.addressTextContainer}
+            )}
+            <Text style={styles.facilityName}>{facility?.name}</Text>
+            {isAdminOrOwner && (
+              <View style={styles.headerIcons}>
+                {(() => {
+                  const subInfo = getSubscriptionInfo();
+                  return (
+                    <View style={styles.subscriptionIconContainer}>
+                      <Ionicons
+                        name="cash-outline"
+                        size={22}
+                        color={subInfo.iconColor}
+                      />
+                      <Text style={[styles.subscriptionIconText, { color: subInfo.iconColor }]}>
+                        {subInfo.text}
+                      </Text>
+                    </View>
+                  );
+                })()}
+                <TouchableOpacity
+                  onPress={handleEditNotes}
+                  style={styles.notesButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Text style={styles.address}>{facility.address}</Text>
-                  <Ionicons name="open-outline" size={16} color={colors.primary} style={styles.addressLinkIcon} />
+                  <Ionicons
+                    name="document-text-outline"
+                    size={22}
+                    color={(facility as any)?.notes ? colors.primary : colors.textSecondary}
+                  />
                 </TouchableOpacity>
               </View>
             )}
-            {facility?.description && (
-              <View style={styles.descriptionContainer}>
-                <Text style={styles.facilityDescription}>
-                  {facility.description}
-                </Text>
-              </View>
-            )}
           </View>
-        )}
-        
-        {/* Open issues by priority */}
-        {(() => {
-          const counts = getOpenIssuesByPriority();
-          const totalOpen = Object.values(counts).reduce((sum, count) => sum + count, 0);
-          const priorities: IssuePriority[] = ['idea', 'normal', 'high', 'critical', 'urgent'];
-          const priorityItems = priorities
-            .map(priority => ({ priority, count: counts[priority] }))
-            .filter(item => item.count > 0);
-
-          return (
-            <View style={styles.issuesByPriorityContainer}>
-              <Text style={styles.issuesByPriorityTitle}>Otevřené závady:</Text>
-              <View style={styles.issuesByPriorityRow}>
-                {totalOpen > 0 && priorityItems.map(({ priority, count }) => (
+          {addressDescriptionExpanded && (facility?.address || facility?.description) && (
+            <View style={styles.addressDescriptionContent}>
+              {facility?.address && (
+                <View style={styles.addressContainer}>
+                  <Text style={styles.addressIcon}>📍</Text>
                   <TouchableOpacity
-                    key={priority}
-                    style={styles.priorityCountItem}
-                    onPress={() => {
-                      if (filterPriority === priority) {
-                        setFilterPriority(null);
-                      } else {
-                        setFilterPriority(priority);
-                        setFilterStatus('open');
-                      }
-                    }}
+                    onPress={handleAddressPress}
                     activeOpacity={0.7}
+                    style={styles.addressTextContainer}
                   >
-                    <View pointerEvents="none">
-                      <PriorityBadge 
-                        priority={priority}
-                        showText={false}
-                        size="small"
-                      />
-                    </View>
-                    <Text style={[styles.priorityCount, filterPriority === priority && styles.priorityCountActive]}>
-                      {count}
-                    </Text>
+                    <Text style={styles.address}>{facility.address}</Text>
+                    <Ionicons name="open-outline" size={16} color={colors.primary} style={styles.addressLinkIcon} />
                   </TouchableOpacity>
-                ))}
-                <View style={styles.filterContainer}>
-                  <TouchableOpacity
-                    onPress={() => setShowFilterModal(true)}
-                    style={styles.filterButton}
-                  >
-                    <Ionicons name="filter-outline" size={24} color={colors.primary} />
-                    <Text style={styles.filterCount}>{filteredIssues.length}</Text>
-                  </TouchableOpacity>
-                  {(filterPriority !== null || filterStatus === 'all') && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        setFilterPriority(null);
-                        setFilterStatus('open');
-                      }}
-                      style={styles.resetFilterButton}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Ionicons name="close" size={24} color={colors.primary} />
-                    </TouchableOpacity>
-                  )}
                 </View>
-              </View>
-            </View>
-          );
-        })()}
-      </View>
-
-      <FlatList
-        data={filteredIssues}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={fetchIssues} />
-        }
-        ListHeaderComponent={
-          (facility as any)?.subscription_status !== 'active' ? (
-            role === 'owner' ? (
-              <View style={styles.paymentCardWrapper}>
-                <Card>
-                  <Text style={styles.payTitle}>Symbolický poplatek 20 Kč/rok</Text>
-                  <Text style={styles.payDesc}>
-                    Poplatek je nevratný a zajišťuje bezpečné používání služby.
+              )}
+              {facility?.description && (
+                <View style={styles.descriptionContainer}>
+                  <Text style={styles.facilityDescription}>
+                    {facility.description}
                   </Text>
-                  <View style={styles.qrContainer}>
-                    <QRCode
-                      value={JSON.stringify({
-                        facilityId,
-                        amountCZK: 20,
-                        message:
-                          'Symbolický, nevratný poplatek 20 Kč/rok, zajišťuje bezpečné používání služby.',
-                      })}
-                      size={140}
-                    />
-                  </View>
-                  <TouchableOpacity onPress={() => setShowVoucherInput(!showVoucherInput)}>
-                    <Text style={styles.voucherToggleText}>Máte voucher?</Text>
-                  </TouchableOpacity>
-                  {showVoucherInput && (
-                    <View style={styles.voucherRow}>
-                      <TextInput
-                        style={[
-                          styles.voucherInput,
-                          isVoucherInputFocused && styles.voucherInputFocused,
-                        ]}
-                        value={voucher}
-                        onChangeText={setVoucher}
-                        placeholder="Voucher kód"
-                        autoCapitalize="characters"
-                        placeholderTextColor={colors.placeholder}
-                        onFocus={() => setIsVoucherInputFocused(true)}
-                        onBlur={() => setIsVoucherInputFocused(false)}
-                      />
-                      <Button
-                        title="Uplatnit"
-                        onPress={async () => {
-                          try {
-                            if (!voucher.trim()) return;
-                            const { data: v, error: verr } = await supabase
-                              .from('vouchers')
-                              .select('months, active, expires_at')
-                              .eq('code', voucher.trim())
-                              .single();
-                            if (verr || !v) throw new Error('Neplatný voucher');
-                            if (v.active === false) throw new Error('Voucher je neaktivní');
-                            if (v.expires_at && new Date(v.expires_at) < new Date()) throw new Error('Voucher vypršel');
+                </View>
+              )}
+            </View>
+          )}
 
-                            const current = (facility as any)?.paid_until
-                              ? new Date((facility as any).paid_until)
-                              : new Date();
-                            const newPaid = new Date(current);
-                            newPaid.setMonth(newPaid.getMonth() + (v.months ?? 12));
+          {/* Open issues by priority */}
+          {(() => {
+            const counts = getOpenIssuesByPriority();
+            const totalOpen = Object.values(counts).reduce((sum, count) => sum + count, 0);
+            const priorities: IssuePriority[] = ['idea', 'normal', 'high', 'critical', 'urgent'];
+            const priorityItems = priorities
+              .map(priority => ({ priority, count: counts[priority] }))
+              .filter(item => item.count > 0);
 
-                            const { data: upd, error: uerr } = await supabase
-                              .from('facilities')
-                              .update({ subscription_status: 'active', paid_until: newPaid.toISOString() })
-                              .eq('id', facilityId)
-                              .select()
-                              .single();
-                            if (uerr) throw uerr;
-                            setFacility(upd as any);
-                            setVoucher('');
-                            setShowVoucherInput(false);
-                            Alert.alert('Hotovo', 'Předplatné bylo aktivováno.');
-                          } catch (e: any) {
-                            Alert.alert('Chyba', e.message ?? 'Voucher se nepodařilo uplatnit.');
-                          }
+            return (
+              <View style={styles.issuesByPriorityContainer}>
+                <Text style={styles.issuesByPriorityTitle}>Otevřené závady:</Text>
+                <View style={styles.issuesByPriorityRow}>
+                  {totalOpen > 0 && priorityItems.map(({ priority, count }) => (
+                    <TouchableOpacity
+                      key={priority}
+                      style={styles.priorityCountItem}
+                      onPress={() => {
+                        if (filterPriority === priority) {
+                          setFilterPriority(null);
+                        } else {
+                          setFilterPriority(priority);
+                          setFilterStatus('open');
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View pointerEvents="none">
+                        <PriorityBadge
+                          priority={priority}
+                          showText={false}
+                          size="small"
+                        />
+                      </View>
+                      <Text style={[styles.priorityCount, filterPriority === priority && styles.priorityCountActive]}>
+                        {count}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  <View style={styles.filterContainer}>
+                    <TouchableOpacity
+                      onPress={() => setShowFilterModal(true)}
+                      style={styles.filterButton}
+                    >
+                      <Ionicons name="filter-outline" size={24} color={colors.primary} />
+                      <Text style={styles.filterCount}>{filteredIssues.length}</Text>
+                    </TouchableOpacity>
+                    {(filterPriority !== null || filterStatus === 'all') && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setFilterPriority(null);
+                          setFilterStatus('open');
                         }}
-                      />
-                    </View>
-                  )}
-                </Card>
-              </View>
-            ) : (
-              <View style={styles.paymentCardWrapper}>
-                <Card>
-                  <Text style={styles.demoModeText}>Tento dům je v ukázkovém režimu</Text>
-                </Card>
-              </View>
-            )
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handleIssuePress(item.id)}
-            style={styles.cardWrapper}
-            delayPressIn={100}
-          >
-            {({ pressed }) => (
-              <Card pressed={pressed}>
-                <View style={styles.issueHeader}>
-                  <View style={styles.titleRow}>
-                    <PriorityBadge 
-                      priority={item.priority as any}
-                      showText={false}
-                      size="small"
-                      showTooltip={false}
-                    />
-                    <Text style={styles.issueTitle} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                  </View>
-                  <View style={styles.badges}>
-                    {getStatusBadge(item.status)}
-                    {openRequestsMap[item.id] && (
-                      <Ionicons 
-                        name="hammer-outline" 
-                        size={20} 
-                        color={colors.primary} 
-                        style={styles.hammerIcon}
-                      />
+                        style={styles.resetFilterButton}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="close" size={24} color={colors.primary} />
+                      </TouchableOpacity>
                     )}
                   </View>
                 </View>
-                <View style={styles.reportedByRow}>
-                  <Text style={styles.reportedByLabel}>{t('issues.reportedBy')}</Text>
-                  <UserAvatar userId={item.created_by} size="small" showName={true} />
-                </View>
-                {item.description && (
-                  <Text style={styles.issueDescription} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                )}
-              </Card>
-            )}
-          </Pressable>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>{t('issues.noIssues')}</Text>
-            <Text style={styles.emptyText}>{t('issues.noIssuesHint')}</Text>
-          </View>
-        }
-      />
-
-      <View style={styles.footer}>
-        <Button
-          title={t('issues.createIssue')}
-          onPress={handleCreateIssue}
-        />
-      </View>
-
-      {/* Notes Modal */}
-      <Modal
-        visible={notesModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => {
-          setNotesModalVisible(false);
-          setEditingNotes('');
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>Poznámky k nemovitosti</Text>
-              <TouchableOpacity onPress={() => {
-                setNotesModalVisible(false);
-                setEditingNotes('');
-              }}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <TextInput
-              style={[
-                styles.input,
-                styles.textArea,
-                isNotesInputFocused && styles.inputFocused
-              ]}
-              placeholder="Zde můžete psát poznámky k nemovitosti..."
-              placeholderTextColor={colors.placeholder}
-              value={editingNotes}
-              onChangeText={setEditingNotes}
-              multiline
-              numberOfLines={8}
-              textAlignVertical="top"
-              onFocus={() => setIsNotesInputFocused(true)}
-              onBlur={() => setIsNotesInputFocused(false)}
-            />
-            
-            <View style={styles.modalButtons}>
-              <Button
-                title="Uložit"
-                onPress={handleSaveNotes}
-                style={styles.modalButton}
-              />
-            </View>
-          </View>
+              </View>
+            );
+          })()}
         </View>
-      </Modal>
 
-      {/* Invite Modal */}
-      <Modal
-        visible={showInviteModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowInviteModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleContainer}>
-                <Text style={styles.modalTitle}>Pozvat do:</Text>
-                <Text style={styles.modalFacilityName}>{facility?.name}</Text>
-                {facility?.address && (
-                  <View style={styles.modalAddressRow}>
-                    <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-                    <Text style={styles.modalAddress}>{facility.address}</Text>
+        <FlatList
+          data={filteredIssues}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={fetchIssues} />
+          }
+          ListHeaderComponent={
+            (facility as any)?.subscription_status !== 'active' ? (
+              role === 'owner' ? (
+                <View style={styles.paymentCardWrapper}>
+                  <Card>
+                    <Text style={styles.payTitle}>Symbolický poplatek 20 Kč/rok</Text>
+                    <Text style={styles.payDesc}>
+                      Poplatek je nevratný a zajišťuje bezpečné používání služby.
+                    </Text>
+                    <View style={styles.qrContainer}>
+                      <QRCode
+                        value={JSON.stringify({
+                          facilityId,
+                          amountCZK: 20,
+                          message:
+                            'Symbolický, nevratný poplatek 20 Kč/rok, zajišťuje bezpečné používání služby.',
+                        })}
+                        size={140}
+                      />
+                    </View>
+                    <TouchableOpacity onPress={() => setShowVoucherInput(!showVoucherInput)}>
+                      <Text style={styles.voucherToggleText}>Máte voucher?</Text>
+                    </TouchableOpacity>
+                    {showVoucherInput && (
+                      <View style={styles.voucherRow}>
+                        <TextInput
+                          style={[
+                            styles.voucherInput,
+                            isVoucherInputFocused && styles.voucherInputFocused,
+                          ]}
+                          value={voucher}
+                          onChangeText={setVoucher}
+                          placeholder="Voucher kód"
+                          autoCapitalize="characters"
+                          placeholderTextColor={colors.placeholder}
+                          onFocus={() => setIsVoucherInputFocused(true)}
+                          onBlur={() => setIsVoucherInputFocused(false)}
+                        />
+                        <Button
+                          title="Uplatnit"
+                          onPress={async () => {
+                            try {
+                              if (!voucher.trim()) return;
+                              const { data: v, error: verr } = await supabase
+                                .from('vouchers')
+                                .select('months, active, expires_at')
+                                .eq('code', voucher.trim())
+                                .single();
+                              if (verr || !v) throw new Error('Neplatný voucher');
+                              if (v.active === false) throw new Error('Voucher je neaktivní');
+                              if (v.expires_at && new Date(v.expires_at) < new Date()) throw new Error('Voucher vypršel');
+
+                              const current = (facility as any)?.paid_until
+                                ? new Date((facility as any).paid_until)
+                                : new Date();
+                              const newPaid = new Date(current);
+                              newPaid.setMonth(newPaid.getMonth() + (v.months ?? 12));
+
+                              const { data: upd, error: uerr } = await supabase
+                                .from('facilities')
+                                .update({ subscription_status: 'active', paid_until: newPaid.toISOString() })
+                                .eq('id', facilityId)
+                                .select()
+                                .single();
+                              if (uerr) throw uerr;
+                              setFacility(upd as any);
+                              setVoucher('');
+                              setShowVoucherInput(false);
+                              Alert.alert('Hotovo', 'Předplatné bylo aktivováno.');
+                            } catch (e: any) {
+                              Alert.alert('Chyba', e.message ?? 'Voucher se nepodařilo uplatnit.');
+                            }
+                          }}
+                        />
+                      </View>
+                    )}
+                  </Card>
+                </View>
+              ) : (
+                <View style={styles.paymentCardWrapper}>
+                  <Card>
+                    <Text style={styles.demoModeText}>Tento dům je v ukázkovém režimu</Text>
+                  </Card>
+                </View>
+              )
+            ) : null
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => handleIssuePress(item.id)}
+              style={styles.cardWrapper}
+              delayPressIn={100}
+            >
+              {({ pressed }) => (
+                <Card pressed={pressed}>
+                  <View style={styles.issueHeader}>
+                    <View style={styles.titleRow}>
+                      <PriorityBadge
+                        priority={item.priority as any}
+                        showText={false}
+                        size="small"
+                        showTooltip={false}
+                      />
+                      <Text style={styles.issueTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                    </View>
+                    <View style={styles.badges}>
+                      {getStatusBadge(item.status)}
+                      {openRequestsMap[item.id] && (
+                        <Ionicons
+                          name="hammer-outline"
+                          size={20}
+                          color={colors.primary}
+                          style={styles.hammerIcon}
+                        />
+                      )}
+                    </View>
                   </View>
+                  <View style={styles.reportedByRow}>
+                    <Text style={styles.reportedByLabel}>{t('issues.reportedBy')}</Text>
+                    <UserAvatar userId={item.created_by} size="small" showName={true} />
+                  </View>
+                  {item.description && (
+                    <Text style={styles.issueDescription} numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                  )}
+                </Card>
+              )}
+            </Pressable>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📋</Text>
+              <Text style={styles.emptyTitle}>{t('issues.noIssues')}</Text>
+              <Text style={styles.emptyText}>{t('issues.noIssuesHint')}</Text>
+            </View>
+          }
+        />
+
+        <View style={styles.footer}>
+          <Button
+            title={t('issues.createIssue')}
+            onPress={handleCreateIssue}
+          />
+        </View>
+
+        {/* Notes Modal */}
+        <FacilityNotesModal
+          visible={notesModalVisible}
+          initialNotes={editingNotes}
+          onSave={handleSaveNotes}
+          onClose={() => {
+            setNotesModalVisible(false);
+            setEditingNotes('');
+          }}
+        />
+
+        {/* Invite Modal */}
+        <Modal
+          visible={showInviteModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowInviteModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalTitleContainer}>
+                  <Text style={styles.modalTitle}>Pozvat do:</Text>
+                  <Text style={styles.modalFacilityName}>{facility?.name}</Text>
+                  {facility?.address && (
+                    <View style={styles.modalAddressRow}>
+                      <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                      <Text style={styles.modalAddress}>{facility.address}</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => setShowInviteModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalDescription}>
+                Sdílejte tento kód nebo QR kód s ostatními uživateli pro připojení k nemovitosti jako členové.
+              </Text>
+
+              <View style={styles.inviteCodeContainer}>
+                <Text style={styles.inviteCodeLabel}>Kód pro připojení:</Text>
+                <Text style={styles.inviteCode}>{inviteCode}</Text>
+              </View>
+
+              <View style={styles.qrCodeContainer}>
+                {inviteCode && (
+                  <QRCode
+                    value={inviteCode}
+                    size={200}
+                    getRef={(ref) => {
+                      if (ref) {
+                        qrCodeRef.current = ref;
+                      }
+                    }}
+                  />
                 )}
               </View>
-              <TouchableOpacity onPress={() => setShowInviteModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.modalDescription}>
-              Sdílejte tento kód nebo QR kód s ostatními uživateli pro připojení k nemovitosti jako členové.
-            </Text>
-            
-            <View style={styles.inviteCodeContainer}>
-              <Text style={styles.inviteCodeLabel}>Kód pro připojení:</Text>
-              <Text style={styles.inviteCode}>{inviteCode}</Text>
-            </View>
-            
-            <View style={styles.qrCodeContainer}>
-              {inviteCode && (
-                <QRCode
-                  value={inviteCode}
-                  size={200}
-                  getRef={(ref) => {
-                    if (ref) {
-                      qrCodeRef.current = ref;
-                    }
-                  }}
-                />
-              )}
-            </View>
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={handlePrintInvite}
-                style={styles.printButton}
-              >
-                <Ionicons name="print-outline" size={24} color="#FFFFFF" />
-                <Text style={styles.printButtonText}>Vytisknout</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
-      {/* Filter Modal */}
-      <Modal
-        visible={showFilterModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowFilterModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>Filtr závad</Text>
-              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  onPress={handlePrintInvite}
+                  style={styles.printButton}
+                >
+                  <Ionicons name="print-outline" size={24} color="#FFFFFF" />
+                  <Text style={styles.printButtonText}>Vytisknout</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Filter Modal */}
+        <Modal
+          visible={showFilterModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowFilterModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>Filtr závad</Text>
+                <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.filterOption, filterStatus === 'open' && styles.filterOptionActive]}
+                onPress={() => {
+                  setFilterStatus('open');
+                  setShowFilterModal(false);
+                }}
+              >
+                <Text style={[styles.filterOptionText, filterStatus === 'open' && styles.filterOptionTextActive]}>
+                  Otevřené ({issues.filter(i => i.status !== 'closed').length})
+                </Text>
+                {filterStatus === 'open' && (
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.filterOption, filterStatus === 'all' && styles.filterOptionActive]}
+                onPress={() => {
+                  setFilterStatus('all');
+                  setShowFilterModal(false);
+                }}
+              >
+                <Text style={[styles.filterOptionText, filterStatus === 'all' && styles.filterOptionTextActive]}>
+                  Všechny ({issues.length})
+                </Text>
+                {filterStatus === 'all' && (
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
+                )}
               </TouchableOpacity>
             </View>
-            
-            <TouchableOpacity
-              style={[styles.filterOption, filterStatus === 'open' && styles.filterOptionActive]}
-              onPress={() => {
-                setFilterStatus('open');
-                setShowFilterModal(false);
-              }}
-            >
-              <Text style={[styles.filterOptionText, filterStatus === 'open' && styles.filterOptionTextActive]}>
-                Otevřené ({issues.filter(i => i.status !== 'closed').length})
-              </Text>
-              {filterStatus === 'open' && (
-                <Ionicons name="checkmark" size={20} color={colors.primary} />
-              )}
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.filterOption, filterStatus === 'all' && styles.filterOptionActive]}
-              onPress={() => {
-                setFilterStatus('all');
-                setShowFilterModal(false);
-              }}
-            >
-              <Text style={[styles.filterOptionText, filterStatus === 'all' && styles.filterOptionTextActive]}>
-                Všechny ({issues.length})
-              </Text>
-              {filterStatus === 'all' && (
-                <Ionicons name="checkmark" size={20} color={colors.primary} />
-              )}
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       </SafeAreaView>
     </ImageBackground>
   );

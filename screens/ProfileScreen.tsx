@@ -19,7 +19,7 @@ import { supabase } from '../lib/supabase';
 import QRCode from 'react-native-qrcode-svg';
 import { useServiceProvider } from '../hooks/useServiceProvider';
 import { useServiceRegistrations } from '../hooks/useServiceRegistrations';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { Card } from '../components/Card';
@@ -43,16 +43,16 @@ const houseRoleOptions = [
 ];
 
 // Component for facility card with role check
-function FacilityCard({ 
-  item, 
-  onEdit, 
-  onUsers, 
-  onNotes, 
+function FacilityCard({
+  item,
+  onEdit,
+  onUsers,
+  onNotes,
   onDelete,
   onLeave,
   onShare
-}: { 
-  item: Facility; 
+}: {
+  item: Facility;
   onEdit: (f: Facility) => void;
   onUsers: (id: string) => void;
   onNotes: (f: Facility) => void;
@@ -150,16 +150,16 @@ export function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { facilities, updateFacility, deleteFacility, leaveFacility } = useFacilities();
   const { profile, updateProfile, uploadAvatar } = useUserProfile();
-  const { provider } = useServiceProvider();
-  const { registrations } = useServiceRegistrations();
+  const { provider, refetch: refetchProvider } = useServiceProvider();
+  const { registrations, refetch: refetchRegistrations } = useServiceRegistrations();
   const { t, ready } = useTranslation();
-  
+
   // Count active services
   const activeServicesCount = registrations.filter(
-    reg => reg.status === 'active' && 
-    (!reg.paid_until || new Date(reg.paid_until) > new Date())
+    reg => reg.status === 'active' &&
+      (!reg.paid_until || new Date(reg.paid_until) > new Date())
   ).length;
-  
+
   const [editingFacility, setEditingFacility] = useState<Facility | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -184,6 +184,13 @@ export function ProfileScreen() {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [facilityForInvite, setFacilityForInvite] = useState<Facility | null>(null);
   const qrCodeRef = useRef<any>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchProvider();
+      refetchRegistrations();
+    }, [refetchProvider, refetchRegistrations])
+  );
 
   const handleSignOut = async () => {
     try {
@@ -453,7 +460,7 @@ export function ProfileScreen() {
           console.warn('Print failed, falling back to Share:', printError);
         }
       }
-      
+
       // Fallback to Share API
       await Share.share({
         message: `Pozvánka k připojení k nemovitosti ${facilityForInvite.name}\n\nKód: ${inviteCode}\n\nPro připojení použijte tento kód v aplikaci nebo naskenujte QR kód.`,
@@ -719,15 +726,15 @@ export function ProfileScreen() {
   const stickyHeaderIndices = useMemo(() => {
     const indices: number[] = [];
     let index = 0;
-    
+
     // Header (not sticky) - index 0
     index++; // header View
-    
+
     // Profile Info Section (if exists)
     if (profile?.first_name || profile?.last_name || profile?.title || profile?.phone) {
       index++; // profileInfoCard
     }
-    
+
     // Services Section header
     if (provider && activeServicesCount > 0) {
       indices.push(index); // stickySectionHeader for Services
@@ -738,17 +745,17 @@ export function ProfileScreen() {
       index++; // stickySectionHeader
       index++; // servicesSection content
     }
-    
+
     // My Facilities Section header
     indices.push(index); // stickySectionHeader for My Facilities
-    
+
     return indices;
   }, [profile, provider, activeServicesCount]);
 
   if (!ready) {
     return (
-      <ImageBackground 
-        source={require('../assets/background/theme_1.png')} 
+      <ImageBackground
+        source={require('../assets/background/theme_1.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
         imageStyle={styles.backgroundImageStyle}
@@ -763,533 +770,533 @@ export function ProfileScreen() {
   }
 
   return (
-    <ImageBackground 
-      source={require('../assets/background/theme_1.png')} 
+    <ImageBackground
+      source={require('../assets/background/theme_1.png')}
       style={styles.backgroundImage}
       resizeMode="cover"
       imageStyle={styles.backgroundImageStyle}
     >
       <SafeAreaView style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        stickyHeaderIndices={stickyHeaderIndices}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.avatarContainer}
-            onPress={handleAvatarPress}
-            disabled={uploadingAvatar}
-          >
-            {profile?.avatar_url ? (
-              <Image 
-                source={{ uri: profile.avatar_url }} 
-                style={styles.avatarImage}
-              />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{getInitials()}</Text>
-              </View>
-            )}
-            {uploadingAvatar && (
-              <View style={styles.avatarOverlay}>
-                <Ionicons name="hourglass-outline" size={24} color={colors.textOnPrimary} />
-              </View>
-            )}
-            <View style={styles.avatarEditIcon}>
-              <Ionicons name="camera" size={16} color={colors.textOnPrimary} />
-            </View>
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>{getDisplayName()}</Text>
-            {profile?.title && <Text style={styles.subtitle}>{profile.title}</Text>}
-            {user?.email && <Text style={styles.email}>{user.email}</Text>}
-            {profile?.phone && <Text style={styles.phone}>{profile.phone}</Text>}
-          </View>
-          <TouchableOpacity onPress={handleEditProfile} style={styles.editProfileButton}>
-            <Ionicons name="pencil-outline" size={22} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Profile Info Section */}
-        {(profile?.first_name || profile?.last_name || profile?.title || profile?.phone || profile?.house_role) && (
-          <View style={styles.profileInfoCard}>
-            {profile.first_name && (
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Jméno:</Text>
-                <Text style={styles.profileValue}>{profile.first_name}</Text>
-              </View>
-            )}
-            {profile.last_name && (
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Příjmení:</Text>
-                <Text style={styles.profileValue}>{profile.last_name}</Text>
-              </View>
-            )}
-            {profile.title && (
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Titul:</Text>
-                <Text style={styles.profileValue}>{profile.title}</Text>
-              </View>
-            )}
-            {profile.phone && (
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Telefon:</Text>
-                <Text style={styles.profileValue}>{profile.phone}</Text>
-              </View>
-            )}
-            {profile.house_role && (
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Role v domě:</Text>
-                <Text style={styles.profileValue}>{profile.house_role}</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Services Section */}
-        {(provider && activeServicesCount > 0) || !provider ? (
-          <View style={[styles.stickySectionHeader, { marginLeft: spacing.xl * 0.7 }]}>
-            <Text style={styles.sectionTitle}>Služby</Text>
-          </View>
-        ) : null}
-        {provider && activeServicesCount > 0 && (
-          <View style={styles.servicesSection}>
-            <Card style={styles.providerInfoCard}>
-              <View style={styles.providerInfoHeader}>
-                <View style={styles.providerInfoLeft}>
-                  <Ionicons name="construct" size={24} color={colors.primary} />
-                  <View style={styles.providerInfoText}>
-                    <Text style={styles.providerInfoTitle}>Aktivní služby</Text>
-                    <Text style={styles.providerInfoSubtitle}>
-                      {activeServicesCount} {activeServicesCount === 1 ? 'služba' : activeServicesCount < 5 ? 'služby' : 'služeb'}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('MyServices' as never)}
-                  style={styles.providerInfoButton}
-                >
-                  <Text style={styles.providerInfoButtonText}>Zobrazit</Text>
-                </TouchableOpacity>
-              </View>
-            </Card>
-          </View>
-        )}
-        {!provider && (
-          <View style={styles.servicesSection}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          stickyHeaderIndices={stickyHeaderIndices}
+        >
+          <View style={styles.header}>
             <TouchableOpacity
-              style={styles.serviceButton}
-              onPress={() => navigation.navigate('ServiceRegistration')}
+              style={styles.avatarContainer}
+              onPress={handleAvatarPress}
+              disabled={uploadingAvatar}
             >
-              <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
-              <Text style={styles.serviceButtonText}>Registrovat jako dodavatel</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              {profile?.avatar_url ? (
+                <Image
+                  source={{ uri: profile.avatar_url }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{getInitials()}</Text>
+                </View>
+              )}
+              {uploadingAvatar && (
+                <View style={styles.avatarOverlay}>
+                  <Ionicons name="hourglass-outline" size={24} color={colors.textOnPrimary} />
+                </View>
+              )}
+              <View style={styles.avatarEditIcon}>
+                <Ionicons name="camera" size={16} color={colors.textOnPrimary} />
+              </View>
+            </TouchableOpacity>
+            <View style={styles.headerText}>
+              <Text style={styles.title}>{getDisplayName()}</Text>
+              {profile?.title && <Text style={styles.subtitle}>{profile.title}</Text>}
+              {user?.email && <Text style={styles.email}>{user.email}</Text>}
+              {profile?.phone && <Text style={styles.phone}>{profile.phone}</Text>}
+            </View>
+            <TouchableOpacity onPress={handleEditProfile} style={styles.editProfileButton}>
+              <Ionicons name="pencil-outline" size={22} color={colors.primary} />
             </TouchableOpacity>
           </View>
-        )}
 
-        <View style={[styles.stickySectionHeader, { marginLeft: spacing.xl * 0.7 }]}>
-          <Text style={styles.sectionTitle}>{t('profile.myFacilities')}</Text>
-        </View>
-        <View style={{ marginTop: spacing.md }}>
-          {facilities.map((item) => (
-            <View key={item.id} style={{ paddingHorizontal: spacing.xl }}>
-              <FacilityCard
-              item={item}
-              onEdit={handleEditFacility}
-              onUsers={(id) => {
-                setSelectedFacilityId(id);
-                setMembersModalVisible(true);
-              }}
-              onNotes={handleEditNotes}
-              onDelete={handleDeleteFacility}
-              onLeave={handleLeaveFacility}
-              onShare={handleShare}
-            />
+          {/* Profile Info Section */}
+          {(profile?.first_name || profile?.last_name || profile?.title || profile?.phone || profile?.house_role) && (
+            <View style={styles.profileInfoCard}>
+              {profile.first_name && (
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Jméno:</Text>
+                  <Text style={styles.profileValue}>{profile.first_name}</Text>
+                </View>
+              )}
+              {profile.last_name && (
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Příjmení:</Text>
+                  <Text style={styles.profileValue}>{profile.last_name}</Text>
+                </View>
+              )}
+              {profile.title && (
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Titul:</Text>
+                  <Text style={styles.profileValue}>{profile.title}</Text>
+                </View>
+              )}
+              {profile.phone && (
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Telefon:</Text>
+                  <Text style={styles.profileValue}>{profile.phone}</Text>
+                </View>
+              )}
+              {profile.house_role && (
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Role v domě:</Text>
+                  <Text style={styles.profileValue}>{profile.house_role}</Text>
+                </View>
+              )}
             </View>
-          ))}
-        </View>
-        <View style={styles.footer}>
-          <TouchableOpacity onPress={handleSignOut} style={styles.signOutButton}>
-            <Text style={styles.signOutText}>{t('profile.signOut')}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          )}
 
-      {/* Edit Modal */}
-      <Modal
-        visible={!!editingFacility}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setEditingFacility(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Upravit nemovitost</Text>
-              <TouchableOpacity onPress={() => setEditingFacility(null)}>
-                <Ionicons name="close" size={24} color={colors.text} />
+          {/* Services Section */}
+          {(provider && activeServicesCount > 0) || !provider ? (
+            <View style={[styles.stickySectionHeader, { marginLeft: spacing.xl * 0.7 }]}>
+              <Text style={styles.sectionTitle}>Služby</Text>
+            </View>
+          ) : null}
+          {provider && activeServicesCount > 0 && (
+            <View style={styles.servicesSection}>
+              <Card style={styles.providerInfoCard}>
+                <View style={styles.providerInfoHeader}>
+                  <View style={styles.providerInfoLeft}>
+                    <Ionicons name="construct" size={24} color={colors.primary} />
+                    <View style={styles.providerInfoText}>
+                      <Text style={styles.providerInfoTitle}>Aktivní služby</Text>
+                      <Text style={styles.providerInfoSubtitle}>
+                        {activeServicesCount} {activeServicesCount === 1 ? 'služba' : activeServicesCount < 5 ? 'služby' : 'služeb'}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('MyServices' as never)}
+                    style={styles.providerInfoButton}
+                  >
+                    <Text style={styles.providerInfoButtonText}>Zobrazit</Text>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+            </View>
+          )}
+          {!provider && (
+            <View style={styles.servicesSection}>
+              <TouchableOpacity
+                style={styles.serviceButton}
+                onPress={() => navigation.navigate('ServiceRegistration')}
+              >
+                <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
+                <Text style={styles.serviceButtonText}>Registrovat jako dodavatel</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
-            <TextInput
-              style={[
-                styles.input,
-                focusedInput === 'facilityName' && styles.inputFocused
-              ]}
-              placeholder="Název nemovitosti"
-              placeholderTextColor={colors.placeholder}
-              value={editName}
-              onChangeText={setEditName}
-              onFocus={() => setFocusedInput('facilityName')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            <TextInput
-              style={[
-                styles.input,
-                styles.textArea,
-                focusedInput === 'facilityDescription' && styles.inputFocused
-              ]}
-              placeholder="Popis"
-              placeholderTextColor={colors.placeholder}
-              value={editDescription}
-              onChangeText={setEditDescription}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              onFocus={() => setFocusedInput('facilityDescription')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            <TextInput
-              style={[
-                styles.input,
-                focusedInput === 'facilityAddress' && styles.inputFocused
-              ]}
-              placeholder="Adresa"
-              placeholderTextColor={colors.placeholder}
-              value={editAddress}
-              onChangeText={setEditAddress}
-              onFocus={() => setFocusedInput('facilityAddress')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            <View style={styles.modalButtons}>
-              <Button
-                title="Uložit"
-                onPress={handleSaveEdit}
-                style={styles.modalButton}
-              />
-            </View>
+          )}
+
+          <View style={[styles.stickySectionHeader, { marginLeft: spacing.xl * 0.7 }]}>
+            <Text style={styles.sectionTitle}>{t('profile.myFacilities')}</Text>
           </View>
-        </View>
-      </Modal>
+          <View style={{ marginTop: spacing.md }}>
+            {facilities.map((item) => (
+              <View key={item.id} style={{ paddingHorizontal: spacing.xl }}>
+                <FacilityCard
+                  item={item}
+                  onEdit={handleEditFacility}
+                  onUsers={(id) => {
+                    setSelectedFacilityId(id);
+                    setMembersModalVisible(true);
+                  }}
+                  onNotes={handleEditNotes}
+                  onDelete={handleDeleteFacility}
+                  onLeave={handleLeaveFacility}
+                  onShare={handleShare}
+                />
+              </View>
+            ))}
+          </View>
+          <View style={styles.footer}>
+            <TouchableOpacity onPress={handleSignOut} style={styles.signOutButton}>
+              <Text style={styles.signOutText}>{t('profile.signOut')}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
 
-      {/* Edit Profile Modal */}
-      <Modal
-        visible={editingProfile}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setEditingProfile(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Upravit profil</Text>
-              <TouchableOpacity onPress={() => setEditingProfile(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <TextInput
-              style={[
-                styles.input,
-                focusedInput === 'firstName' && styles.inputFocused
-              ]}
-              placeholder="Jméno"
-              placeholderTextColor={colors.placeholder}
-              value={editFirstName}
-              onChangeText={setEditFirstName}
-              onFocus={() => setFocusedInput('firstName')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            <TextInput
-              style={[
-                styles.input,
-                focusedInput === 'lastName' && styles.inputFocused
-              ]}
-              placeholder="Příjmení"
-              placeholderTextColor={colors.placeholder}
-              value={editLastName}
-              onChangeText={setEditLastName}
-              onFocus={() => setFocusedInput('lastName')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            <TextInput
-              style={[
-                styles.input,
-                focusedInput === 'title' && styles.inputFocused
-              ]}
-              placeholder="Titul"
-              placeholderTextColor={colors.placeholder}
-              value={editTitle}
-              onChangeText={setEditTitle}
-              onFocus={() => setFocusedInput('title')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            <TextInput
-              style={[
-                styles.input,
-                focusedInput === 'phone' && styles.inputFocused
-              ]}
-              placeholder="Telefon"
-              placeholderTextColor={colors.placeholder}
-              value={editPhone}
-              onChangeText={setEditPhone}
-              keyboardType="phone-pad"
-              onFocus={() => setFocusedInput('phone')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            {focusedInput === 'houseRole' ? (
+        {/* Edit Modal */}
+        <Modal
+          visible={!!editingFacility}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setEditingFacility(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Upravit nemovitost</Text>
+                <TouchableOpacity onPress={() => setEditingFacility(null)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
               <TextInput
                 style={[
                   styles.input,
-                  styles.inputFocused
+                  focusedInput === 'facilityName' && styles.inputFocused
                 ]}
-                placeholder="Zadejte vlastní roli v domě"
+                placeholder="Název nemovitosti"
                 placeholderTextColor={colors.placeholder}
-                value={editHouseRole}
-                onChangeText={setEditHouseRole}
+                value={editName}
+                onChangeText={setEditName}
+                onFocus={() => setFocusedInput('facilityName')}
                 onBlur={() => setFocusedInput(null)}
               />
-            ) : (
-              <TouchableOpacity
-                style={styles.houseRoleButton}
-                onPress={showHouseRolePicker}
-              >
-                <Text style={[styles.houseRoleButtonText, !editHouseRole && styles.houseRoleButtonTextPlaceholder]}>
-                  {editHouseRole || 'Vyberte roli v domě'}
-                </Text>
-                <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-            
-            <View style={styles.modalButtons}>
-              <Button
-                title="Uložit"
-                onPress={handleSaveProfile}
-                style={styles.modalButton}
+
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  focusedInput === 'facilityDescription' && styles.inputFocused
+                ]}
+                placeholder="Popis"
+                placeholderTextColor={colors.placeholder}
+                value={editDescription}
+                onChangeText={setEditDescription}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                onFocus={() => setFocusedInput('facilityDescription')}
+                onBlur={() => setFocusedInput(null)}
               />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  focusedInput === 'facilityAddress' && styles.inputFocused
+                ]}
+                placeholder="Adresa"
+                placeholderTextColor={colors.placeholder}
+                value={editAddress}
+                onChangeText={setEditAddress}
+                onFocus={() => setFocusedInput('facilityAddress')}
+                onBlur={() => setFocusedInput(null)}
+              />
+
+              <View style={styles.modalButtons}>
+                <Button
+                  title="Uložit"
+                  onPress={handleSaveEdit}
+                  style={styles.modalButton}
+                />
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      <ConfirmDeleteDialog
-        visible={deleteDialogVisible}
-        onClose={handleDeleteCancel}
-        onConfirm={handleDeleteConfirm}
-        title={t('profile.deleteFacilityTitle')}
-        message={t('profile.deleteFacilityMessage')}
-        confirmText={t('common.delete')}
-        confirmationWord="SMAZAT"
-      />
-
-      {selectedFacilityId && (
-        <FacilityMembersModal
-          visible={membersModalVisible}
-          facilityId={selectedFacilityId}
-          onClose={() => {
-            setMembersModalVisible(false);
-            setSelectedFacilityId(null);
-          }}
-        />
-      )}
-
-      {/* House Role Picker Modal for Android */}
-      {Platform.OS === 'android' && (
+        {/* Edit Profile Modal */}
         <Modal
-          visible={houseRolePickerVisible}
+          visible={editingProfile}
           animationType="slide"
           transparent={true}
-          onRequestClose={() => setHouseRolePickerVisible(false)}
+          onRequestClose={() => setEditingProfile(false)}
         >
-          <TouchableOpacity
-            style={styles.rolePickerOverlay}
-            activeOpacity={1}
-            onPress={() => setHouseRolePickerVisible(false)}
-          >
-            <View style={styles.rolePickerContent}>
-              <Text style={styles.rolePickerTitle}>Vyberte roli v domě</Text>
-              {houseRoleOptions.map((role) => (
-                <TouchableOpacity
-                  key={role}
-                  style={[
-                    styles.rolePickerOption,
-                    editHouseRole === role && styles.rolePickerOptionSelected,
-                  ]}
-                  onPress={() => handleHouseRoleSelect(role)}
-                >
-                  <Text
-                    style={[
-                      styles.rolePickerOptionText,
-                      editHouseRole === role && styles.rolePickerOptionTextSelected,
-                    ]}
-                  >
-                    {role}
-                  </Text>
-                  {editHouseRole === role && (
-                    <Ionicons name="checkmark" size={20} color={colors.primary} />
-                  )}
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Upravit profil</Text>
+                <TouchableOpacity onPress={() => setEditingProfile(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.rolePickerCancel}
-                onPress={() => setHouseRolePickerVisible(false)}
-              >
-                <Text style={styles.rolePickerCancelText}>Zrušit</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      )}
+              </View>
 
-      {/* Notes Modal */}
-      <Modal
-        visible={notesModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => {
-          setNotesModalVisible(false);
-          setFacilityForNotes(null);
-          setEditingNotes('');
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Poznámky k nemovitosti</Text>
-              <TouchableOpacity onPress={() => {
-                setNotesModalVisible(false);
-                setFacilityForNotes(null);
-                setEditingNotes('');
-              }}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
+              <TextInput
+                style={[
+                  styles.input,
+                  focusedInput === 'firstName' && styles.inputFocused
+                ]}
+                placeholder="Jméno"
+                placeholderTextColor={colors.placeholder}
+                value={editFirstName}
+                onChangeText={setEditFirstName}
+                onFocus={() => setFocusedInput('firstName')}
+                onBlur={() => setFocusedInput(null)}
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  focusedInput === 'lastName' && styles.inputFocused
+                ]}
+                placeholder="Příjmení"
+                placeholderTextColor={colors.placeholder}
+                value={editLastName}
+                onChangeText={setEditLastName}
+                onFocus={() => setFocusedInput('lastName')}
+                onBlur={() => setFocusedInput(null)}
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  focusedInput === 'title' && styles.inputFocused
+                ]}
+                placeholder="Titul"
+                placeholderTextColor={colors.placeholder}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                onFocus={() => setFocusedInput('title')}
+                onBlur={() => setFocusedInput(null)}
+              />
+
+              <TextInput
+                style={[
+                  styles.input,
+                  focusedInput === 'phone' && styles.inputFocused
+                ]}
+                placeholder="Telefon"
+                placeholderTextColor={colors.placeholder}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                keyboardType="phone-pad"
+                onFocus={() => setFocusedInput('phone')}
+                onBlur={() => setFocusedInput(null)}
+              />
+
+              {focusedInput === 'houseRole' ? (
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.inputFocused
+                  ]}
+                  placeholder="Zadejte vlastní roli v domě"
+                  placeholderTextColor={colors.placeholder}
+                  value={editHouseRole}
+                  onChangeText={setEditHouseRole}
+                  onBlur={() => setFocusedInput(null)}
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.houseRoleButton}
+                  onPress={showHouseRolePicker}
+                >
+                  <Text style={[styles.houseRoleButtonText, !editHouseRole && styles.houseRoleButtonTextPlaceholder]}>
+                    {editHouseRole || 'Vyberte roli v domě'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+
+              <View style={styles.modalButtons}>
+                <Button
+                  title="Uložit"
+                  onPress={handleSaveProfile}
+                  style={styles.modalButton}
+                />
+              </View>
             </View>
-            
-            <TextInput
-              style={[
-                styles.input,
-                styles.textArea,
-                focusedInput === 'notes' && styles.inputFocused
-              ]}
-              placeholder="Zde můžete psát poznámky k nemovitosti..."
-              placeholderTextColor={colors.placeholder}
-              value={editingNotes}
-              onChangeText={setEditingNotes}
-              multiline
-              numberOfLines={10}
-              textAlignVertical="top"
-              onFocus={() => setFocusedInput('notes')}
-              onBlur={() => setFocusedInput(null)}
-            />
-            
-            <View style={styles.modalButtons}>
-              <Button
-                title="Zrušit"
-                onPress={() => {
+          </View>
+        </Modal>
+
+        <ConfirmDeleteDialog
+          visible={deleteDialogVisible}
+          onClose={handleDeleteCancel}
+          onConfirm={handleDeleteConfirm}
+          title={t('profile.deleteFacilityTitle')}
+          message={t('profile.deleteFacilityMessage')}
+          confirmText={t('common.delete')}
+          confirmationWord="SMAZAT"
+        />
+
+        {selectedFacilityId && (
+          <FacilityMembersModal
+            visible={membersModalVisible}
+            facilityId={selectedFacilityId}
+            onClose={() => {
+              setMembersModalVisible(false);
+              setSelectedFacilityId(null);
+            }}
+          />
+        )}
+
+        {/* House Role Picker Modal for Android */}
+        {Platform.OS === 'android' && (
+          <Modal
+            visible={houseRolePickerVisible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setHouseRolePickerVisible(false)}
+          >
+            <TouchableOpacity
+              style={styles.rolePickerOverlay}
+              activeOpacity={1}
+              onPress={() => setHouseRolePickerVisible(false)}
+            >
+              <View style={styles.rolePickerContent}>
+                <Text style={styles.rolePickerTitle}>Vyberte roli v domě</Text>
+                {houseRoleOptions.map((role) => (
+                  <TouchableOpacity
+                    key={role}
+                    style={[
+                      styles.rolePickerOption,
+                      editHouseRole === role && styles.rolePickerOptionSelected,
+                    ]}
+                    onPress={() => handleHouseRoleSelect(role)}
+                  >
+                    <Text
+                      style={[
+                        styles.rolePickerOptionText,
+                        editHouseRole === role && styles.rolePickerOptionTextSelected,
+                      ]}
+                    >
+                      {role}
+                    </Text>
+                    {editHouseRole === role && (
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={styles.rolePickerCancel}
+                  onPress={() => setHouseRolePickerVisible(false)}
+                >
+                  <Text style={styles.rolePickerCancelText}>Zrušit</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+
+        {/* Notes Modal */}
+        <Modal
+          visible={notesModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setNotesModalVisible(false);
+            setFacilityForNotes(null);
+            setEditingNotes('');
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Poznámky k nemovitosti</Text>
+                <TouchableOpacity onPress={() => {
                   setNotesModalVisible(false);
                   setFacilityForNotes(null);
                   setEditingNotes('');
-                }}
-                variant="outline"
-                style={styles.modalButton}
+                }}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  focusedInput === 'notes' && styles.inputFocused
+                ]}
+                placeholder="Zde můžete psát poznámky k nemovitosti..."
+                placeholderTextColor={colors.placeholder}
+                value={editingNotes}
+                onChangeText={setEditingNotes}
+                multiline
+                numberOfLines={10}
+                textAlignVertical="top"
+                onFocus={() => setFocusedInput('notes')}
+                onBlur={() => setFocusedInput(null)}
               />
-              <Button
-                title="Uložit"
-                onPress={handleSaveNotes}
-                style={styles.modalButton}
-              />
+
+              <View style={styles.modalButtons}>
+                <Button
+                  title="Zrušit"
+                  onPress={() => {
+                    setNotesModalVisible(false);
+                    setFacilityForNotes(null);
+                    setEditingNotes('');
+                  }}
+                  variant="outline"
+                  style={styles.modalButton}
+                />
+                <Button
+                  title="Uložit"
+                  onPress={handleSaveNotes}
+                  style={styles.modalButton}
+                />
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* Invite Modal */}
-      <Modal
-        visible={inviteModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => {
-          setInviteModalVisible(false);
-          setFacilityForInvite(null);
-          setInviteCode(null);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleContainer}>
-                <Text style={styles.modalTitle}>Pozvat do:</Text>
-                <Text style={styles.modalFacilityName}>{facilityForInvite?.name}</Text>
-                {facilityForInvite?.address && (
-                  <View style={styles.modalAddressRow}>
-                    <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-                    <Text style={styles.modalAddress}>{facilityForInvite.address}</Text>
-                  </View>
+        {/* Invite Modal */}
+        <Modal
+          visible={inviteModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setInviteModalVisible(false);
+            setFacilityForInvite(null);
+            setInviteCode(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalTitleContainer}>
+                  <Text style={styles.modalTitle}>Pozvat do:</Text>
+                  <Text style={styles.modalFacilityName}>{facilityForInvite?.name}</Text>
+                  {facilityForInvite?.address && (
+                    <View style={styles.modalAddressRow}>
+                      <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
+                      <Text style={styles.modalAddress}>{facilityForInvite.address}</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => {
+                  setInviteModalVisible(false);
+                  setFacilityForInvite(null);
+                  setInviteCode(null);
+                }}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalDescription}>
+                Sdílejte tento kód nebo QR kód s ostatními uživateli pro připojení k nemovitosti jako členové.
+              </Text>
+
+              <View style={styles.inviteCodeContainer}>
+                <Text style={styles.inviteCodeLabel}>Kód pro připojení:</Text>
+                <Text style={styles.inviteCode}>{inviteCode}</Text>
+              </View>
+
+              <View style={styles.qrCodeContainer}>
+                {inviteCode && (
+                  <QRCode
+                    value={inviteCode}
+                    size={200}
+                    getRef={(ref) => {
+                      if (ref) {
+                        qrCodeRef.current = ref;
+                      }
+                    }}
+                  />
                 )}
               </View>
-              <TouchableOpacity onPress={() => {
-                setInviteModalVisible(false);
-                setFacilityForInvite(null);
-                setInviteCode(null);
-              }}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.modalDescription}>
-              Sdílejte tento kód nebo QR kód s ostatními uživateli pro připojení k nemovitosti jako členové.
-            </Text>
-            
-            <View style={styles.inviteCodeContainer}>
-              <Text style={styles.inviteCodeLabel}>Kód pro připojení:</Text>
-              <Text style={styles.inviteCode}>{inviteCode}</Text>
-            </View>
-            
-            <View style={styles.qrCodeContainer}>
-              {inviteCode && (
-                <QRCode
-                  value={inviteCode}
-                  size={200}
-                  getRef={(ref) => {
-                    if (ref) {
-                      qrCodeRef.current = ref;
-                    }
-                  }}
-                />
-              )}
-            </View>
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={handlePrintInvite}
-                style={styles.printButton}
-              >
-                <Ionicons name="print-outline" size={24} color="#FFFFFF" />
-                <Text style={styles.printButtonText}>Vytisknout</Text>
-              </TouchableOpacity>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  onPress={handlePrintInvite}
+                  style={styles.printButton}
+                >
+                  <Ionicons name="print-outline" size={24} color="#FFFFFF" />
+                  <Text style={styles.printButtonText}>Vytisknout</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       </SafeAreaView>
     </ImageBackground>
   );

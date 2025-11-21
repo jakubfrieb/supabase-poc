@@ -38,7 +38,7 @@ export function CreateIssueScreen() {
   const ensureMediaLibraryPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Přístup zamítnut', 'Pro přidání fotky povolte přístup ke galerii.');
+      Alert.alert(t('issues.accessDenied'), t('issues.galleryPermission'));
       return false;
     }
     return true;
@@ -47,7 +47,7 @@ export function CreateIssueScreen() {
   const ensureCameraPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Přístup zamítnut', 'Pro pořízení fotky povolte přístup ke kameře.');
+      Alert.alert(t('issues.accessDenied'), t('issues.cameraPermission'));
       return false;
     }
     return true;
@@ -55,20 +55,23 @@ export function CreateIssueScreen() {
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      Alert.alert('Error', 'Please enter an issue title');
+      Alert.alert(t('common.error'), t('issues.titleRequired'));
       return;
     }
 
     try {
       setLoading(true);
-      const { user } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) throw new Error('User not authenticated');
+
       const created = await createIssue({
         title: title.trim(),
         description: description.trim() || undefined,
         priority: priority,
         facility_id: facilityId,
         requires_cooperation: requiresCooperation,
-        cooperation_user_id: requiresCooperation && user.data.user ? user.data.user.id : undefined,
+        cooperation_user_id: requiresCooperation ? user.id : undefined,
       });
       // After creating the issue, upload any attachments into issue_attachments
       if (created?.id && attachments.length > 0) {
@@ -123,22 +126,23 @@ export function CreateIssueScreen() {
                 file_size: uint8Array.byteLength,
                 url: data.publicUrl,
               }]);
-          } catch {}
+          } catch { }
         }
       }
       setAttachments([]);
-      Alert.alert('Success', 'Issue created successfully');
+      setAttachments([]);
+      Alert.alert(t('common.success'), t('issues.createSuccess'));
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Error', 'Failed to create issue. Please try again.');
+      Alert.alert(t('common.error'), t('issues.createError'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ImageBackground 
-      source={require('../assets/background/theme_1.png')} 
+    <ImageBackground
+      source={require('../assets/background/theme_1.png')}
       style={styles.backgroundImage}
       resizeMode="cover"
       imageStyle={styles.backgroundImageStyle}
@@ -148,182 +152,182 @@ export function CreateIssueScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('issues.createTitle')}</Text>
-            <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
-          </View>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.header}>
+              <Text style={styles.title}>{t('issues.createTitle')}</Text>
+              <Text style={styles.subtitle}>{t('auth.loginSubtitle')}</Text>
+            </View>
 
-          <View style={styles.form}>
-            <Input
-              label={`${t('issues.title')} *`}
-              placeholder={t('issues.title')}
-              value={title}
-              onChangeText={setTitle}
-              autoCapitalize="sentences"
-            />
+            <View style={styles.form}>
+              <Input
+                label={`${t('issues.title')} *`}
+                placeholder={t('issues.title')}
+                value={title}
+                onChangeText={setTitle}
+                autoCapitalize="sentences"
+              />
 
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Priorita</Text>
-              <View style={styles.priorityContainer}>
-                {(['idea', 'normal', 'high', 'critical', 'urgent'] as IssuePriority[]).map((prio) => {
-                  const config = getPriorityConfig(prio);
-                  const isSelected = priority === prio;
-                  const isBubble = prio === 'normal' || prio === 'high' || prio === 'critical';
-                  const exclamationMarks = prio === 'normal' ? '!' : prio === 'high' ? '!!' : prio === 'critical' ? '!!!' : null;
-                  
-                  return (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Priorita</Text>
+                <View style={styles.priorityContainer}>
+                  {(['idea', 'normal', 'high', 'critical', 'urgent'] as IssuePriority[]).map((prio) => {
+                    const config = getPriorityConfig(prio);
+                    const isSelected = priority === prio;
+                    const isBubble = prio === 'normal' || prio === 'high' || prio === 'critical';
+                    const exclamationMarks = prio === 'normal' ? '!' : prio === 'high' ? '!!' : prio === 'critical' ? '!!!' : null;
+
+                    return (
+                      <TouchableOpacity
+                        key={prio}
+                        style={styles.priorityOption}
+                        onPress={() => setPriority(prio)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[
+                          styles.priorityIconContainer,
+                          isSelected && { borderColor: config.color, borderWidth: 2, backgroundColor: `${config.color}20` }
+                        ]}>
+                          {isBubble ? (
+                            <View style={[styles.priorityBubble, { borderColor: config.color }]}>
+                              <Text style={[styles.priorityExclamation, { color: config.color }]}>
+                                {exclamationMarks}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Ionicons name={config.icon as any} size={28} color={config.color} />
+                          )}
+                        </View>
+                        <Text style={[
+                          styles.priorityLabel,
+                          isSelected && { color: config.color, fontWeight: fontWeight.semibold }
+                        ]}>
+                          {config.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>{t('issues.description')}</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      isDescriptionFocused && styles.inputFocused
+                    ]}
+                    placeholder={t('issues.description')}
+                    placeholderTextColor={colors.placeholder}
+                    value={description}
+                    onChangeText={setDescription}
+                    multiline
+                    numberOfLines={6}
+                    textAlignVertical="top"
+                    onFocus={() => setIsDescriptionFocused(true)}
+                    onBlur={() => setIsDescriptionFocused(false)}
+                  />
+                  <View style={styles.inputIcons}>
                     <TouchableOpacity
-                      key={prio}
-                      style={styles.priorityOption}
-                      onPress={() => setPriority(prio)}
-                      activeOpacity={0.7}
+                      style={styles.attachButtonInline}
+                      onPress={async () => {
+                        const ok = await ensureMediaLibraryPermission();
+                        if (!ok) return;
+                        const res = await ImagePicker.launchImageLibraryAsync({
+                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                          allowsEditing: false,
+                          quality: 0.8,
+                          base64: true,
+                          selectionLimit: 0,
+                        });
+                        if (!res.canceled) {
+                          const next = res.assets.map((as) => ({ uri: as.uri, base64: as.base64 ?? null }));
+                          setAttachments((prev) => [...prev, ...next]);
+                        }
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                      <View style={[
-                        styles.priorityIconContainer,
-                        isSelected && { borderColor: config.color, borderWidth: 2, backgroundColor: `${config.color}20` }
-                      ]}>
-                        {isBubble ? (
-                          <View style={[styles.priorityBubble, { borderColor: config.color }]}>
-                            <Text style={[styles.priorityExclamation, { color: config.color }]}>
-                              {exclamationMarks}
-                            </Text>
-                          </View>
-                        ) : (
-                          <Ionicons name={config.icon as any} size={28} color={config.color} />
-                        )}
-                      </View>
-                      <Text style={[
-                        styles.priorityLabel,
-                        isSelected && { color: config.color, fontWeight: fontWeight.semibold }
-                      ]}>
-                        {config.label}
-                      </Text>
+                      <Ionicons name="image-outline" size={22} color={colors.primary} />
                     </TouchableOpacity>
-                  );
-                })}
+                    <TouchableOpacity
+                      style={styles.attachButtonInline}
+                      onPress={async () => {
+                        const ok = await ensureCameraPermission();
+                        if (!ok) return;
+                        const res = await ImagePicker.launchCameraAsync({
+                          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                          allowsEditing: false,
+                          quality: 0.8,
+                          base64: true,
+                        });
+                        if (!res.canceled) {
+                          const as = res.assets[0];
+                          setAttachments((prev) => [...prev, { uri: as.uri, base64: as.base64 ?? null }]);
+                        }
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="camera-outline" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.sendButton, loading && styles.sendButtonDisabled]}
+                      onPress={handleSubmit}
+                      disabled={loading}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      {loading ? (
+                        <Ionicons name="hourglass-outline" size={20} color={colors.textOnPrimary} />
+                      ) : (
+                        <Ionicons name="paper-plane" size={20} color={colors.textOnPrimary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>{t('issues.description')}</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    isDescriptionFocused && styles.inputFocused
-                  ]}
-                  placeholder={t('issues.description')}
-                  placeholderTextColor={colors.placeholder}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={6}
-                  textAlignVertical="top"
-                  onFocus={() => setIsDescriptionFocused(true)}
-                  onBlur={() => setIsDescriptionFocused(false)}
-                />
-                <View style={styles.inputIcons}>
-                  <TouchableOpacity
-                    style={styles.attachButtonInline}
-                    onPress={async () => {
-                      const ok = await ensureMediaLibraryPermission();
-                      if (!ok) return;
-                      const res = await ImagePicker.launchImageLibraryAsync({
-                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                        allowsEditing: false,
-                        quality: 0.8,
-                        base64: true,
-                        selectionLimit: 0,
-                      });
-                      if (!res.canceled) {
-                        const next = res.assets.map((as) => ({ uri: as.uri, base64: as.base64 ?? null }));
-                        setAttachments((prev) => [...prev, ...next]);
-                      }
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="image-outline" size={22} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.attachButtonInline}
-                    onPress={async () => {
-                      const ok = await ensureCameraPermission();
-                      if (!ok) return;
-                      const res = await ImagePicker.launchCameraAsync({
-                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                        allowsEditing: false,
-                        quality: 0.8,
-                        base64: true,
-                      });
-                      if (!res.canceled) {
-                        const as = res.assets[0];
-                        setAttachments((prev) => [...prev, { uri: as.uri, base64: as.base64 ?? null }]);
-                      }
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="camera-outline" size={22} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.sendButton, loading && styles.sendButtonDisabled]}
-                    onPress={handleSubmit}
-                    disabled={loading}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    {loading ? (
-                      <Ionicons name="hourglass-outline" size={20} color={colors.textOnPrimary} />
-                    ) : (
-                      <Ionicons name="paper-plane" size={20} color={colors.textOnPrimary} />
+              <View style={styles.section}>
+                <TouchableOpacity
+                  style={styles.checkboxContainer}
+                  onPress={() => setRequiresCooperation(!requiresCooperation)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.checkbox, requiresCooperation && styles.checkboxChecked]}>
+                    {requiresCooperation && (
+                      <Ionicons name="checkmark" size={18} color={colors.textOnPrimary} />
                     )}
-                  </TouchableOpacity>
-                </View>
+                  </View>
+                  <View style={styles.checkboxLabelContainer}>
+                    <Text style={styles.checkboxLabel}>Nutná moje součinnost při opravě</Text>
+                    <Text style={styles.checkboxHint}>
+                      (např. přístup do bytu, přítomnost při opravě)
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               </View>
-            </View>
 
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={styles.checkboxContainer}
-                onPress={() => setRequiresCooperation(!requiresCooperation)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.checkbox, requiresCooperation && styles.checkboxChecked]}>
-                  {requiresCooperation && (
-                    <Ionicons name="checkmark" size={18} color={colors.textOnPrimary} />
-                  )}
-                </View>
-                <View style={styles.checkboxLabelContainer}>
-                  <Text style={styles.checkboxLabel}>Nutná moje součinnost při opravě</Text>
-                  <Text style={styles.checkboxHint}>
-                    (např. přístup do bytu, přítomnost při opravě)
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {attachments.length > 0 && (
-              <View style={{ marginTop: spacing.md }}>
-                <Text style={styles.sectionLabel}>{t('issues.attachments')}</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {attachments.map((att, idx) => (
-                    <View key={`${att.uri}-${idx}`} style={{ marginRight: 8, marginBottom: 8 }}>
-                      <View style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
-                        <Image source={{ uri: att.uri }} style={{ width: '100%', height: '100%' }} />
+              {attachments.length > 0 && (
+                <View style={{ marginTop: spacing.md }}>
+                  <Text style={styles.sectionLabel}>{t('issues.attachments')}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                    {attachments.map((att, idx) => (
+                      <View key={`${att.uri}-${idx}`} style={{ marginRight: 8, marginBottom: 8 }}>
+                        <View style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+                          <Image source={{ uri: att.uri }} style={{ width: '100%', height: '100%' }} />
+                        </View>
+                        <DeleteButton
+                          onDelete={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                          size={14}
+                        />
                       </View>
-                      <DeleteButton
-                        onDelete={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
-                        size={14}
-                      />
-                    </View>
-                  ))}
+                    ))}
+                  </View>
                 </View>
-              </View>
-            )}
-          </View>
-        </ScrollView>
+              )}
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </ImageBackground>

@@ -53,7 +53,7 @@ export function ConfirmDeleteDialog({
           <View style={styles.dialog}>
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.message}>{message}</Text>
-            
+
             <View style={styles.confirmationSection}>
               <Text style={styles.confirmationLabel}>
                 {t('profile.deleteConfirmationLabel', { word: confirmationWord })}

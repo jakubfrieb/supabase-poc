@@ -1,8 +1,15 @@
 * BUGY
-    - nemi mozne zalozit zavadu se zapnutym "nutna moje soucinnost"
+
+  
+
+
+
+* DONE
     - modalni hlaska po zalozeni zavady je anglicky
-    - po registraci jako dodavatel, se vratim zpet na profil a stale vidim registrovat jako dodavatel - melo by tam jiz byt videt prehled sluzeb (to se zobrazi po te co jdu na prehled a pak zpet na profil)
+    - nemi mozne zalozit zavadu se zapnutym "nutna moje soucinnost"
     - mam smichane nemovitosti a zavady (v rezimu sluzby)
+    - po registraci jako dodavatel, se vratim zpet na profil a stale vidim registrovat jako dodavatel - melo by tam jiz byt videt prehled sluzeb (to se zobrazi po te co jdu na prehled a pak zpet na profil)
+
 
 
 * spravce/vlastni - zadost o dodavatele - po vyberu sluzby, neni potreba potvrzovaci popup

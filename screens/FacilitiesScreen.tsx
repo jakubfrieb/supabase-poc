@@ -7,6 +7,7 @@ import { useFacilities } from '../hooks/useFacilities';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { MetroFAB } from '../components/MetroFAB';
+import { DashboardSkeleton } from '../components/SkeletonLoader';
 import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { colors, spacing, fontSize, fontWeight, borderRadius, shadows } from '../theme/colors';
@@ -36,6 +37,28 @@ export function FacilitiesScreen() {
   const { issues: providerIssues, loading: providerIssuesLoading, refetch: refetchProviderIssues } = useProviderIssues();
   const { requests: openRequests, loading: openRequestsLoading, refetch: refetchOpenRequests } = useOpenServiceRequests();
   const { requests: providerRequests, loading: providerRequestsLoading, refetch: refetchProviderRequests } = useProviderServiceRequests();
+
+  // Unified loading state
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  useEffect(() => {
+    const checkLoading = async () => {
+      // If any of the critical data is still loading, keep isInitialLoading true
+      if (loading || providerIssuesLoading || openRequestsLoading || providerRequestsLoading) {
+        return;
+      }
+
+      // Add a small delay to ensure the skeleton is visible for at least a moment (smoother transition)
+      // and to wait for any potential rapid state updates
+      const timer = setTimeout(() => {
+        setIsInitialLoading(false);
+      }, 800);
+
+      return () => clearTimeout(timer);
+    };
+
+    checkLoading();
+  }, [loading, providerIssuesLoading, openRequestsLoading, providerRequestsLoading]);
 
   // Check if user has any facilities (is manager/owner/requester)
   const hasFacilities = facilities.length > 0;
@@ -443,603 +466,609 @@ export function FacilitiesScreen() {
       imageStyle={styles.backgroundImageStyle}
     >
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>{t('common.dashboard')}</Text>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={() => navigation.navigate('Notifications' as never)} style={styles.bell}>
-              <Ionicons name="notifications-outline" size={24} color={colors.primary} />
-              {count > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)}>
-              <UserAvatar userId={user?.id || null} size="medium" showName={false} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <FlatList
-          data={facilities}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={loading}
-              onRefresh={() => {
-                fetchFacilities();
-                fetchOpenIssuesCounts();
-                refetchOpenRequests();
-                refetchProviderRequests();
-              }}
-            />
-          }
-          ListHeaderComponent={
-            <View>
-              {/* Otevřené poptávky - pro vlastníky */}
-              {hasFacilities && deduplicatedOpenRequests.length > 0 && (
-                <Card style={styles.requestsCard}>
-                  <View style={styles.requestsHeader}>
-                    <View style={styles.requestsHeaderLeft}>
-                      <Ionicons name="clipboard-outline" size={24} color={colors.primary} />
-                      <View style={styles.requestsHeaderText}>
-                        <Text style={styles.requestsTitle}>{t('serviceRequest.openRequests')}</Text>
-                        <Text style={styles.requestsSubtitle}>
-                          {deduplicatedOpenRequests.length} {deduplicatedOpenRequests.length === 1 ? 'poptávka' : deduplicatedOpenRequests.length < 5 ? 'poptávky' : 'poptávek'}
-                        </Text>
-                      </View>
+        {isInitialLoading ? (
+          <DashboardSkeleton />
+        ) : (
+          <>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>{t('common.dashboard')}</Text>
+              </View>
+              <View style={styles.headerActions}>
+                <TouchableOpacity onPress={() => navigation.navigate('Notifications' as never)} style={styles.bell}>
+                  <Ionicons name="notifications-outline" size={24} color={colors.primary} />
+                  {count > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
                     </View>
-                  </View>
-                  <View style={styles.requestsList}>
-                    {deduplicatedOpenRequests.slice(0, 5).map((request) => {
-                      if (!request.issues) return null;
-
-                      // Determine workflow step icon
-                      const getWorkflowIcon = () => {
-                        const issue = request.issues;
-                        if (issue.status === 'resolved' || issue.status === 'closed') {
-                          return 'checkmark-circle-outline';
-                        }
-                        if (issue.selected_appointment_id) {
-                          return 'construct-outline';
-                        }
-                        if (issue.assigned_provider_id) {
-                          return 'calendar-outline';
-                        }
-                        if (request.application_count && request.application_count > 0) {
-                          return 'people-outline';
-                        }
-                        return 'document-text-outline';
-                      };
-
-                      // For combined requests, show service count or list
-                      const serviceName = request._isCombined
-                        ? (request._serviceCount > 1 ? `${request._serviceCount} služeb` : request.services?.name || 'Neznámá služba')
-                        : (request.services?.name || 'Neznámá služba');
-
-                      return (
-                        <TouchableOpacity
-                          key={request.issue_id}
-                          onPress={() => navigation.navigate('IssueDetail', {
-                            issueId: request.issue_id,
-                            facilityId: request.issues.facility_id,
-                          })}
-                          style={styles.requestItem}
-                        >
-                          <View style={styles.requestItemLeft}>
-                            <View style={styles.requestItemText}>
-                              <Text style={styles.requestItemTitle} numberOfLines={1}>
-                                {request.issues.title}
-                              </Text>
-                              <Text style={styles.requestItemSubtitle} numberOfLines={1}>
-                                {request.facilities?.name || 'Neznámá nemovitost'} • {serviceName}
-                              </Text>
-                            </View>
-                          </View>
-                          <View style={styles.providerRequestRight}>
-                            <View style={styles.workflowIconContainer}>
-                              <Ionicons
-                                name={getWorkflowIcon() as any}
-                                size={20}
-                                color={colors.primary}
-                              />
-                            </View>
-                            <View style={styles.applicantIconContainer}>
-                              <Ionicons name="person-outline" size={16} color={colors.primary} />
-                              <Text style={styles.applicantCountNumber}>
-                                {request.application_count || 0}/3
-                              </Text>
-                            </View>
-                            {request.application_count !== undefined && request.application_count >= 3 && (
-                              <View style={styles.fullBadge}>
-                                <Text style={styles.fullBadgeText}>Plná</Text>
-                              </View>
-                            )}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {deduplicatedOpenRequests.length > 5 && (
-                      <Text style={styles.requestsMore}>
-                        {t('common.andMore', { count: deduplicatedOpenRequests.length - 5 })}
-                      </Text>
-                    )}
-                  </View>
-                </Card>
-              )}
-
-              {/* Přihlášené poptávky - pro dodavatele (kde je přiřazen nebo má application) */}
-              {provider && (providerIssues.length > 0 || appliedRequests.length > 0) && (
-                <>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Přihlášené poptávky</Text>
-                    <Text style={styles.sectionSubtitle}>
-                      {providerIssues.length + appliedRequests.length} {(providerIssues.length + appliedRequests.length) === 1 ? 'poptávka' : (providerIssues.length + appliedRequests.length) < 5 ? 'poptávky' : 'poptávek'}
-                    </Text>
-                  </View>
-                  {/* Issues where provider is assigned */}
-                  {providerIssues.length > 0 && providerIssues.slice(0, 5).map((issue) => {
-                    const getWorkflowIcon = () => {
-                      if (issue.status === 'resolved' || issue.status === 'closed') {
-                        return 'checkmark-circle-outline';
-                      }
-                      if (issue.selected_appointment_id) {
-                        return 'construct-outline';
-                      }
-                      if (issue.assigned_provider_id) {
-                        return 'calendar-outline';
-                      }
-                      return 'document-text-outline';
-                    };
-
-                    return (
-                      <Pressable
-                        key={issue.id}
-                        onPress={async () => {
-                          let finalFacilityId = issue.facility_id;
-
-                          // If facilityId is not available, use RPC function to get it
-                          if (!finalFacilityId && issue.id) {
-                            try {
-                              const { data, error: rpcError } = await supabase
-                                .rpc('get_issue_facility_id_for_provider', {
-                                  issue_uuid: issue.id
-                                });
-
-                              if (!rpcError && data) {
-                                finalFacilityId = data;
-                              } else {
-                                console.error('Error fetching facility_id via RPC:', rpcError);
-                              }
-                            } catch (error) {
-                              console.error('Error calling RPC function:', error);
-                            }
-                          }
-
-                          if (finalFacilityId) {
-                            navigation.navigate('IssueDetail', {
-                              issueId: issue.id,
-                              facilityId: finalFacilityId,
-                            });
-                          } else {
-                            Alert.alert('Chyba', 'Nepodařilo se načíst informace o závadě. Zkuste to prosím znovu.');
-                          }
-                        }}
-                        style={styles.cardWrapper}
-                      >
-                        {({ pressed }) => (
-                          <Card pressed={pressed} style={styles.requestCard}>
-                            <View style={styles.requestHeader}>
-                              <View style={styles.requestInfo}>
-                                <Text style={styles.requestTitle}>{issue.title}</Text>
-                                <Text style={styles.requestSubtitle}>Vybran</Text>
-                                <Text style={styles.requestDate}>
-                                  Vytvořeno: {new Date(issue.created_at).toLocaleDateString('cs-CZ')}
-                                </Text>
-                              </View>
-                              <View style={styles.requestHeaderRight}>
-                                <View style={[
-                                  styles.providerRequestStatus,
-                                  { backgroundColor: colors.statusInProgress }
-                                ]}>
-                                  <Text style={styles.providerRequestStatusText}>
-                                    Vybran
-                                  </Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                              </View>
-                            </View>
-                            <View style={styles.requestFooter}>
-                              <View style={styles.priorityIconContainer}>
-                                <PriorityBadge
-                                  priority={issue.priority || 'normal'}
-                                  showText={false}
-                                  size="small"
-                                />
-                              </View>
-                              <View style={styles.applicantIconContainer}>
-                                <Ionicons name="person-outline" size={16} color={colors.primary} />
-                                <Text style={styles.applicantCountNumber}>
-                                  {issueApplicationCounts[issue.id] || 0}/3
-                                </Text>
-                              </View>
-                            </View>
-                          </Card>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                  {/* Requests where provider has applied */}
-                  {appliedRequests.length > 0 && appliedRequests.slice(0, Math.max(0, 5 - providerIssues.length)).map((request: any) => {
-                    const issueId = request.issue_id;
-
-                    if (!issueId) {
-                      console.warn('Missing issueId for request:', request);
-                      return null;
-                    }
-
-                    // Get issue data - use cached title if available, or fetch via RPC
-                    const facilityId = request.issues?.facility_id;
-                    const issueTitle = request.issues?.title || issueTitles[issueId] || 'Načítání...';
-                    const serviceName = request.services?.name || 'Neznámá služba';
-
-                    // If issues is null, we'll fetch it when needed (via RPC in onPress)
-                    // But we can still display the card with available data
-
-                    const getWorkflowIcon = () => {
-                      const issue = request.issues;
-                      if (issue?.status === 'resolved' || issue?.status === 'closed') {
-                        return 'checkmark-circle-outline';
-                      }
-                      if (issue?.selected_appointment_id) {
-                        return 'construct-outline';
-                      }
-                      if (issue?.assigned_provider_id) {
-                        return 'calendar-outline';
-                      }
-                      if (request.application_count && request.application_count > 0) {
-                        return 'people-outline';
-                      }
-                      return 'document-text-outline';
-                    };
-
-                    return (
-                      <Pressable
-                        key={request.id}
-                        onPress={async () => {
-                          let finalFacilityId = facilityId;
-
-                          // If facilityId is not available, use RPC function to get it
-                          if (!finalFacilityId && issueId) {
-                            try {
-                              const { data, error: rpcError } = await supabase
-                                .rpc('get_issue_facility_id_for_provider', {
-                                  issue_uuid: issueId
-                                });
-
-                              if (!rpcError && data) {
-                                finalFacilityId = data;
-                              } else {
-                                console.error('Error fetching facility_id via RPC:', rpcError);
-                              }
-                            } catch (error) {
-                              console.error('Error calling RPC function:', error);
-                            }
-                          }
-
-                          if (finalFacilityId) {
-                            navigation.navigate('IssueDetail', {
-                              issueId,
-                              facilityId: finalFacilityId,
-                            });
-                          } else {
-                            Alert.alert('Chyba', 'Nepodařilo se načíst informace o závadě. Zkuste to prosím znovu.');
-                          }
-                        }}
-                        style={styles.cardWrapper}
-                      >
-                        {({ pressed }) => (
-                          <Card pressed={pressed} style={styles.requestCard}>
-                            <View style={styles.requestHeader}>
-                              <View style={styles.requestInfo}>
-                                <Text style={styles.requestTitle}>{issueTitle}</Text>
-                                <Text style={styles.requestSubtitle}>{serviceName}</Text>
-                                <Text style={styles.requestDate}>
-                                  Vytvořeno: {new Date(request.created_at).toLocaleDateString('cs-CZ')}
-                                </Text>
-                              </View>
-                              <View style={styles.requestHeaderRight}>
-                                <View style={[
-                                  styles.providerRequestStatus,
-                                  { backgroundColor: request.application_status === 'selected' ? colors.statusInProgress : colors.statusOpen }
-                                ]}>
-                                  <Text style={styles.providerRequestStatusText}>
-                                    {request.application_status === 'selected' ? 'Vybrán' : 'Čeká'}
-                                  </Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                              </View>
-                            </View>
-                            <View style={styles.requestFooter}>
-                              <View style={styles.priorityIconContainer}>
-                                <PriorityBadge
-                                  priority={request.issues?.priority || 'normal'}
-                                  showText={false}
-                                  size="small"
-                                />
-                              </View>
-                              <View style={styles.applicantIconContainer}>
-                                <Ionicons name="person-outline" size={16} color={colors.primary} />
-                                <Text style={styles.applicantCountNumber}>
-                                  {request.application_count || 0}/3
-                                </Text>
-                              </View>
-                            </View>
-                          </Card>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </>
-              )}
-              {/* Sekce Vaše nemovitosti */}
-              {hasFacilities && (
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>{t('facilities.yourFacilities')}</Text>
-                  <Text style={styles.sectionSubtitle}>
-                    {facilities.length} {facilities.length === 1 ? 'nemovitost' : facilities.length < 5 ? 'nemovitosti' : 'nemovitostí'}
-                  </Text>
-                </View>
-              )}
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate('Profile' as never)}>
+                  <UserAvatar userId={user?.id || null} size="medium" showName={false} />
+                </TouchableOpacity>
+              </View>
             </View>
-          }
-          ListFooterComponent={
-            <View>
-              {/* Dostupné poptávky - pro dodavatele (stránkované po 5ti) */}
-              {provider && deduplicatedAvailableRequests.length > 0 && (
-                <>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Dostupné poptávky</Text>
-                    <Text style={styles.sectionSubtitle}>
-                      {deduplicatedAvailableRequests.length} {deduplicatedAvailableRequests.length === 1 ? 'poptávka' : deduplicatedAvailableRequests.length < 5 ? 'poptávky' : 'poptávek'}
-                    </Text>
-                  </View>
-                  {paginatedAvailableRequests.map((request: any) => {
-                    const service = request.services;
-                    // If combined, show "Kombinované", otherwise show service name
-                    const serviceName = request._isCombined
-                      ? 'Kombinované'
-                      : (service?.name || 'Neznámá služba');
-                    const issue = request.issues;
-                    const issueId = request.issue_id;
-                    // If issues is null (due to RLS), we'll fetch facility_id separately
-                    const facilityId = issue?.facility_id;
-                    // Use issue title if available, otherwise use cached title or fallback
-                    const issueTitle = issue?.title || issueTitles[issueId] || 'Závada';
-                    const getIcon = (name: string) => {
-                      // For combined services, use a generic icon
-                      if (name === 'Kombinované') {
-                        return 'build-outline';
-                      }
-                      const icons: Record<string, string> = {
-                        'Instalatérství': 'water-outline',
-                        'Elektrikář': 'flash-outline',
-                        'Zedník': 'hammer-outline',
-                        'Malíř': 'brush-outline',
-                        'Truhlář': 'cube-outline',
-                        'Sklenář': 'albums-outline',
-                        'Zámečník': 'lock-closed-outline',
-                        'Obkladač': 'grid-outline',
-                        'Podlahář': 'layers-outline',
-                        'Topenář': 'flame-outline',
-                        'Klimatizace': 'snow-outline',
-                        'Revize elektro': 'checkmark-circle-outline',
-                        'Revize plyn': 'checkmark-circle-outline',
-                        'Tesař': 'home-outline',
-                        'Klempíř': 'construct-outline',
-                        'Zahradník': 'leaf-outline',
-                        'Úklid': 'sparkles-outline',
-                        'Skládka': 'trash-outline',
-                      };
-                      return icons[name] || 'build-outline';
-                    };
 
-                    if (!issueId) {
-                      console.warn('Missing issueId for request:', request);
-                      return null;
-                    }
-
-                    // If facilityId is not available, we'll fetch it when user clicks
-                    // For now, we'll show the card and fetch facility_id on click if needed
-
-                    return (
-                      <Pressable
-                        key={request.id}
-                        onPress={async () => {
-                          let finalFacilityId = facilityId;
-
-                          // If facilityId is not available, use RPC function to get it
-                          if (!finalFacilityId && issueId) {
-                            try {
-                              const { data, error: rpcError } = await supabase
-                                .rpc('get_issue_facility_id_for_provider', {
-                                  issue_uuid: issueId
-                                });
-
-                              if (!rpcError && data) {
-                                finalFacilityId = data;
-                              } else {
-                                console.error('Error fetching facility_id via RPC:', rpcError);
-                              }
-                            } catch (error) {
-                              console.error('Error calling RPC function:', error);
-                            }
-                          }
-
-                          if (finalFacilityId) {
-                            navigation.navigate('IssueDetail', {
-                              issueId,
-                              facilityId: finalFacilityId,
-                            });
-                          } else {
-                            Alert.alert('Chyba', 'Nepodařilo se načíst informace o závadě. Zkuste to prosím znovu.');
-                          }
-                        }}
-                        style={styles.cardWrapper}
-                      >
-                        {({ pressed }) => (
-                          <Card pressed={pressed} style={styles.requestCard}>
-                            <View style={styles.requestHeader}>
-                              <View style={styles.requestInfo}>
-                                <Text style={styles.requestTitle}>{issueTitle}</Text>
-                                <Text style={styles.requestSubtitle}>{serviceName}</Text>
-                                <Text style={styles.requestDate}>
-                                  Vytvořeno: {new Date(request.created_at).toLocaleDateString('cs-CZ')}
-                                </Text>
-                              </View>
-                              <View style={styles.requestHeaderRight}>
-                                {/* Workflow icon */}
-                                {(() => {
-                                  const getWorkflowIcon = () => {
-                                    if (issue?.status === 'resolved' || issue?.status === 'closed') {
-                                      return 'checkmark-circle-outline';
-                                    }
-                                    if (issue?.selected_appointment_id) {
-                                      return 'construct-outline';
-                                    }
-                                    if (issue?.assigned_provider_id) {
-                                      return 'calendar-outline';
-                                    }
-                                    if (request.application_count && request.application_count > 0) {
-                                      return 'people-outline';
-                                    }
-                                    return 'document-text-outline';
-                                  };
-                                  return (
-                                    <View style={styles.workflowIconContainer}>
-                                      <Ionicons
-                                        name={getWorkflowIcon() as any}
-                                        size={20}
-                                        color={colors.primary}
-                                      />
-                                    </View>
-                                  );
-                                })()}
-                                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                              </View>
-                            </View>
-                            <View style={styles.requestFooter}>
-                              <View style={styles.priorityIconContainer}>
-                                <PriorityBadge
-                                  priority={issue?.priority || 'normal'}
-                                  showText={false}
-                                  size="small"
-                                />
-                              </View>
-                              <View style={styles.applicantIconContainer}>
-                                <Ionicons name="person-outline" size={16} color={colors.primary} />
-                                <Text style={styles.applicantCountNumber}>
-                                  {request.application_count || 0}/3
-                                </Text>
-                              </View>
-                            </View>
-                          </Card>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                  {/* Pagination controls */}
-                  <View style={styles.paginationContainer}>
-                    {availableRequestsPage > 0 && (
-                      <TouchableOpacity
-                        onPress={() => setAvailableRequestsPage(availableRequestsPage - 1)}
-                        style={styles.paginationButton}
-                      >
-                        <Ionicons name="chevron-back" size={20} color={colors.primary} />
-                        <Text style={styles.paginationButtonText}>Předchozí</Text>
-                      </TouchableOpacity>
-                    )}
-                    {hasMoreAvailableRequests && (
-                      <TouchableOpacity
-                        onPress={() => setAvailableRequestsPage(availableRequestsPage + 1)}
-                        style={[styles.paginationButton, styles.paginationButtonRight]}
-                      >
-                        <Text style={styles.paginationButtonText}>Další</Text>
-                        <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </>
-              )}
-            </View>
-          }
-          renderItem={({ item }) => {
-            const openCount = openIssuesCounts[item.id] ?? 0;
-            return (
-              <Pressable
-                onPress={() => handleFacilityPress(item.id)}
-                style={styles.cardWrapper}
-              >
-                {({ pressed }) => (
-                  <Card pressed={pressed}>
-                    <View style={styles.facilityHeader}>
-                      <Text style={styles.facilityName}>{item.name}</Text>
-                      <View style={styles.facilityHeaderRight}>
-                        {(item as any).notes && (
-                          <View style={styles.notesIconContainer}>
-                            <Ionicons name="document-text-outline" size={18} color={colors.textSecondary} />
+            <FlatList
+              data={facilities}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={loading}
+                  onRefresh={() => {
+                    fetchFacilities();
+                    fetchOpenIssuesCounts();
+                    refetchOpenRequests();
+                    refetchProviderRequests();
+                  }}
+                />
+              }
+              ListHeaderComponent={
+                <View>
+                  {/* Otevřené poptávky - pro vlastníky */}
+                  {hasFacilities && deduplicatedOpenRequests.length > 0 && (
+                    <Card style={styles.requestsCard}>
+                      <View style={styles.requestsHeader}>
+                        <View style={styles.requestsHeaderLeft}>
+                          <Ionicons name="clipboard-outline" size={24} color={colors.primary} />
+                          <View style={styles.requestsHeaderText}>
+                            <Text style={styles.requestsTitle}>{t('serviceRequest.openRequests')}</Text>
+                            <Text style={styles.requestsSubtitle}>
+                              {deduplicatedOpenRequests.length} {deduplicatedOpenRequests.length === 1 ? 'poptávka' : deduplicatedOpenRequests.length < 5 ? 'poptávky' : 'poptávek'}
+                            </Text>
                           </View>
-                        )}
-                        <View style={[
-                          styles.openIssuesBadge,
-                          openCount === 0 && styles.openIssuesBadgeEmpty
-                        ]}>
-                          <Text style={[
-                            styles.openIssuesText,
-                            openCount === 0 && styles.openIssuesTextEmpty
-                          ]}>
-                            {openCount}
-                          </Text>
                         </View>
                       </View>
-                    </View>
-                    {item.description && (
-                      <Text style={styles.facilityDescription} numberOfLines={2}>
-                        {item.description}
-                      </Text>
-                    )}
-                    {item.address && (
-                      <View style={styles.addressContainer}>
-                        <Text style={styles.addressIcon}>📍</Text>
-                        <Text style={styles.address} numberOfLines={1}>
-                          {item.address}
+                      <View style={styles.requestsList}>
+                        {deduplicatedOpenRequests.slice(0, 5).map((request) => {
+                          if (!request.issues) return null;
+
+                          // Determine workflow step icon
+                          const getWorkflowIcon = () => {
+                            const issue = request.issues;
+                            if (issue.status === 'resolved' || issue.status === 'closed') {
+                              return 'checkmark-circle-outline';
+                            }
+                            if (issue.selected_appointment_id) {
+                              return 'construct-outline';
+                            }
+                            if (issue.assigned_provider_id) {
+                              return 'calendar-outline';
+                            }
+                            if (request.application_count && request.application_count > 0) {
+                              return 'people-outline';
+                            }
+                            return 'document-text-outline';
+                          };
+
+                          // For combined requests, show service count or list
+                          const serviceName = request._isCombined
+                            ? (request._serviceCount > 1 ? `${request._serviceCount} služeb` : request.services?.name || 'Neznámá služba')
+                            : (request.services?.name || 'Neznámá služba');
+
+                          return (
+                            <TouchableOpacity
+                              key={request.issue_id}
+                              onPress={() => navigation.navigate('IssueDetail', {
+                                issueId: request.issue_id,
+                                facilityId: request.issues.facility_id,
+                              })}
+                              style={styles.requestItem}
+                            >
+                              <View style={styles.requestItemLeft}>
+                                <View style={styles.requestItemText}>
+                                  <Text style={styles.requestItemTitle} numberOfLines={1}>
+                                    {request.issues.title}
+                                  </Text>
+                                  <Text style={styles.requestItemSubtitle} numberOfLines={1}>
+                                    {request.facilities?.name || 'Neznámá nemovitost'} • {serviceName}
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={styles.providerRequestRight}>
+                                <View style={styles.workflowIconContainer}>
+                                  <Ionicons
+                                    name={getWorkflowIcon() as any}
+                                    size={20}
+                                    color={colors.primary}
+                                  />
+                                </View>
+                                <View style={styles.applicantIconContainer}>
+                                  <Ionicons name="person-outline" size={16} color={colors.primary} />
+                                  <Text style={styles.applicantCountNumber}>
+                                    {request.application_count || 0}/3
+                                  </Text>
+                                </View>
+                                {request.application_count !== undefined && request.application_count >= 3 && (
+                                  <View style={styles.fullBadge}>
+                                    <Text style={styles.fullBadgeText}>Plná</Text>
+                                  </View>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        {deduplicatedOpenRequests.length > 5 && (
+                          <Text style={styles.requestsMore}>
+                            {t('common.andMore', { count: deduplicatedOpenRequests.length - 5 })}
+                          </Text>
+                        )}
+                      </View>
+                    </Card>
+                  )}
+
+                  {/* Přihlášené poptávky - pro dodavatele (kde je přiřazen nebo má application) */}
+                  {provider && (providerIssues.length > 0 || appliedRequests.length > 0) && (
+                    <>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Přihlášené poptávky</Text>
+                        <Text style={styles.sectionSubtitle}>
+                          {providerIssues.length + appliedRequests.length} {(providerIssues.length + appliedRequests.length) === 1 ? 'poptávka' : (providerIssues.length + appliedRequests.length) < 5 ? 'poptávky' : 'poptávek'}
                         </Text>
                       </View>
-                    )}
-                  </Card>
-                )}
-              </Pressable>
-            );
-          }}
-          ListEmptyComponent={
-            !hasFacilities && !hasActiveServices ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyIcon}>🏢</Text>
-                <Text style={styles.emptyTitle}>{t('facilities.noFacilities')}</Text>
-                <Text style={styles.emptyText}>{t('facilities.noFacilitiesHint')}</Text>
-              </View>
-            ) : null
-          }
-        />
+                      {/* Issues where provider is assigned */}
+                      {providerIssues.length > 0 && providerIssues.slice(0, 5).map((issue) => {
+                        const getWorkflowIcon = () => {
+                          if (issue.status === 'resolved' || issue.status === 'closed') {
+                            return 'checkmark-circle-outline';
+                          }
+                          if (issue.selected_appointment_id) {
+                            return 'construct-outline';
+                          }
+                          if (issue.assigned_provider_id) {
+                            return 'calendar-outline';
+                          }
+                          return 'document-text-outline';
+                        };
 
-        <MetroFAB
-          onAddPress={handleCreateFacility}
-          onLinkPress={() => navigation.navigate('JoinFacility' as never)}
-          onAddServicePress={handleAddService}
-        />
+                        return (
+                          <Pressable
+                            key={issue.id}
+                            onPress={async () => {
+                              let finalFacilityId = issue.facility_id;
+
+                              // If facilityId is not available, use RPC function to get it
+                              if (!finalFacilityId && issue.id) {
+                                try {
+                                  const { data, error: rpcError } = await supabase
+                                    .rpc('get_issue_facility_id_for_provider', {
+                                      issue_uuid: issue.id
+                                    });
+
+                                  if (!rpcError && data) {
+                                    finalFacilityId = data;
+                                  } else {
+                                    console.error('Error fetching facility_id via RPC:', rpcError);
+                                  }
+                                } catch (error) {
+                                  console.error('Error calling RPC function:', error);
+                                }
+                              }
+
+                              if (finalFacilityId) {
+                                navigation.navigate('IssueDetail', {
+                                  issueId: issue.id,
+                                  facilityId: finalFacilityId,
+                                });
+                              } else {
+                                Alert.alert('Chyba', 'Nepodařilo se načíst informace o závadě. Zkuste to prosím znovu.');
+                              }
+                            }}
+                            style={styles.cardWrapper}
+                          >
+                            {({ pressed }) => (
+                              <Card pressed={pressed} style={styles.requestCard}>
+                                <View style={styles.requestHeader}>
+                                  <View style={styles.requestInfo}>
+                                    <Text style={styles.requestTitle}>{issue.title}</Text>
+                                    <Text style={styles.requestSubtitle}>Vybran</Text>
+                                    <Text style={styles.requestDate}>
+                                      Vytvořeno: {new Date(issue.created_at).toLocaleDateString('cs-CZ')}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.requestHeaderRight}>
+                                    <View style={[
+                                      styles.providerRequestStatus,
+                                      { backgroundColor: colors.statusInProgress }
+                                    ]}>
+                                      <Text style={styles.providerRequestStatusText}>
+                                        Vybran
+                                      </Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                                  </View>
+                                </View>
+                                <View style={styles.requestFooter}>
+                                  <View style={styles.priorityIconContainer}>
+                                    <PriorityBadge
+                                      priority={issue.priority || 'normal'}
+                                      showText={false}
+                                      size="small"
+                                    />
+                                  </View>
+                                  <View style={styles.applicantIconContainer}>
+                                    <Ionicons name="person-outline" size={16} color={colors.primary} />
+                                    <Text style={styles.applicantCountNumber}>
+                                      {issueApplicationCounts[issue.id] || 0}/3
+                                    </Text>
+                                  </View>
+                                </View>
+                              </Card>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                      {/* Requests where provider has applied */}
+                      {appliedRequests.length > 0 && appliedRequests.slice(0, Math.max(0, 5 - providerIssues.length)).map((request: any) => {
+                        const issueId = request.issue_id;
+
+                        if (!issueId) {
+                          console.warn('Missing issueId for request:', request);
+                          return null;
+                        }
+
+                        // Get issue data - use cached title if available, or fetch via RPC
+                        const facilityId = request.issues?.facility_id;
+                        const issueTitle = request.issues?.title || issueTitles[issueId] || 'Načítání...';
+                        const serviceName = request.services?.name || 'Neznámá služba';
+
+                        // If issues is null, we'll fetch it when needed (via RPC in onPress)
+                        // But we can still display the card with available data
+
+                        const getWorkflowIcon = () => {
+                          const issue = request.issues;
+                          if (issue?.status === 'resolved' || issue?.status === 'closed') {
+                            return 'checkmark-circle-outline';
+                          }
+                          if (issue?.selected_appointment_id) {
+                            return 'construct-outline';
+                          }
+                          if (issue?.assigned_provider_id) {
+                            return 'calendar-outline';
+                          }
+                          if (request.application_count && request.application_count > 0) {
+                            return 'people-outline';
+                          }
+                          return 'document-text-outline';
+                        };
+
+                        return (
+                          <Pressable
+                            key={request.id}
+                            onPress={async () => {
+                              let finalFacilityId = facilityId;
+
+                              // If facilityId is not available, use RPC function to get it
+                              if (!finalFacilityId && issueId) {
+                                try {
+                                  const { data, error: rpcError } = await supabase
+                                    .rpc('get_issue_facility_id_for_provider', {
+                                      issue_uuid: issueId
+                                    });
+
+                                  if (!rpcError && data) {
+                                    finalFacilityId = data;
+                                  } else {
+                                    console.error('Error fetching facility_id via RPC:', rpcError);
+                                  }
+                                } catch (error) {
+                                  console.error('Error calling RPC function:', error);
+                                }
+                              }
+
+                              if (finalFacilityId) {
+                                navigation.navigate('IssueDetail', {
+                                  issueId,
+                                  facilityId: finalFacilityId,
+                                });
+                              } else {
+                                Alert.alert('Chyba', 'Nepodařilo se načíst informace o závadě. Zkuste to prosím znovu.');
+                              }
+                            }}
+                            style={styles.cardWrapper}
+                          >
+                            {({ pressed }) => (
+                              <Card pressed={pressed} style={styles.requestCard}>
+                                <View style={styles.requestHeader}>
+                                  <View style={styles.requestInfo}>
+                                    <Text style={styles.requestTitle}>{issueTitle}</Text>
+                                    <Text style={styles.requestSubtitle}>{serviceName}</Text>
+                                    <Text style={styles.requestDate}>
+                                      Vytvořeno: {new Date(request.created_at).toLocaleDateString('cs-CZ')}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.requestHeaderRight}>
+                                    <View style={[
+                                      styles.providerRequestStatus,
+                                      { backgroundColor: request.application_status === 'selected' ? colors.statusInProgress : colors.statusOpen }
+                                    ]}>
+                                      <Text style={styles.providerRequestStatusText}>
+                                        {request.application_status === 'selected' ? 'Vybrán' : 'Čeká'}
+                                      </Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                                  </View>
+                                </View>
+                                <View style={styles.requestFooter}>
+                                  <View style={styles.priorityIconContainer}>
+                                    <PriorityBadge
+                                      priority={request.issues?.priority || 'normal'}
+                                      showText={false}
+                                      size="small"
+                                    />
+                                  </View>
+                                  <View style={styles.applicantIconContainer}>
+                                    <Ionicons name="person-outline" size={16} color={colors.primary} />
+                                    <Text style={styles.applicantCountNumber}>
+                                      {request.application_count || 0}/3
+                                    </Text>
+                                  </View>
+                                </View>
+                              </Card>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </>
+                  )}
+                  {/* Sekce Vaše nemovitosti */}
+                  {hasFacilities && (
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionTitle}>{t('facilities.yourFacilities')}</Text>
+                      <Text style={styles.sectionSubtitle}>
+                        {facilities.length} {facilities.length === 1 ? 'nemovitost' : facilities.length < 5 ? 'nemovitosti' : 'nemovitostí'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              }
+              ListFooterComponent={
+                <View>
+                  {/* Dostupné poptávky - pro dodavatele (stránkované po 5ti) */}
+                  {provider && deduplicatedAvailableRequests.length > 0 && (
+                    <>
+                      <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Dostupné poptávky</Text>
+                        <Text style={styles.sectionSubtitle}>
+                          {deduplicatedAvailableRequests.length} {deduplicatedAvailableRequests.length === 1 ? 'poptávka' : deduplicatedAvailableRequests.length < 5 ? 'poptávky' : 'poptávek'}
+                        </Text>
+                      </View>
+                      {paginatedAvailableRequests.map((request: any) => {
+                        const service = request.services;
+                        // If combined, show "Kombinované", otherwise show service name
+                        const serviceName = request._isCombined
+                          ? 'Kombinované'
+                          : (service?.name || 'Neznámá služba');
+                        const issue = request.issues;
+                        const issueId = request.issue_id;
+                        // If issues is null (due to RLS), we'll fetch facility_id separately
+                        const facilityId = issue?.facility_id;
+                        // Use issue title if available, otherwise use cached title or fallback
+                        const issueTitle = issue?.title || issueTitles[issueId] || 'Závada';
+                        const getIcon = (name: string) => {
+                          // For combined services, use a generic icon
+                          if (name === 'Kombinované') {
+                            return 'build-outline';
+                          }
+                          const icons: Record<string, string> = {
+                            'Instalatérství': 'water-outline',
+                            'Elektrikář': 'flash-outline',
+                            'Zedník': 'hammer-outline',
+                            'Malíř': 'brush-outline',
+                            'Truhlář': 'cube-outline',
+                            'Sklenář': 'albums-outline',
+                            'Zámečník': 'lock-closed-outline',
+                            'Obkladač': 'grid-outline',
+                            'Podlahář': 'layers-outline',
+                            'Topenář': 'flame-outline',
+                            'Klimatizace': 'snow-outline',
+                            'Revize elektro': 'checkmark-circle-outline',
+                            'Revize plyn': 'checkmark-circle-outline',
+                            'Tesař': 'home-outline',
+                            'Klempíř': 'construct-outline',
+                            'Zahradník': 'leaf-outline',
+                            'Úklid': 'sparkles-outline',
+                            'Skládka': 'trash-outline',
+                          };
+                          return icons[name] || 'build-outline';
+                        };
+
+                        if (!issueId) {
+                          console.warn('Missing issueId for request:', request);
+                          return null;
+                        }
+
+                        // If facilityId is not available, we'll fetch it when user clicks
+                        // For now, we'll show the card and fetch facility_id on click if needed
+
+                        return (
+                          <Pressable
+                            key={request.id}
+                            onPress={async () => {
+                              let finalFacilityId = facilityId;
+
+                              // If facilityId is not available, use RPC function to get it
+                              if (!finalFacilityId && issueId) {
+                                try {
+                                  const { data, error: rpcError } = await supabase
+                                    .rpc('get_issue_facility_id_for_provider', {
+                                      issue_uuid: issueId
+                                    });
+
+                                  if (!rpcError && data) {
+                                    finalFacilityId = data;
+                                  } else {
+                                    console.error('Error fetching facility_id via RPC:', rpcError);
+                                  }
+                                } catch (error) {
+                                  console.error('Error calling RPC function:', error);
+                                }
+                              }
+
+                              if (finalFacilityId) {
+                                navigation.navigate('IssueDetail', {
+                                  issueId,
+                                  facilityId: finalFacilityId,
+                                });
+                              } else {
+                                Alert.alert('Chyba', 'Nepodařilo se načíst informace o závadě. Zkuste to prosím znovu.');
+                              }
+                            }}
+                            style={styles.cardWrapper}
+                          >
+                            {({ pressed }) => (
+                              <Card pressed={pressed} style={styles.requestCard}>
+                                <View style={styles.requestHeader}>
+                                  <View style={styles.requestInfo}>
+                                    <Text style={styles.requestTitle}>{issueTitle}</Text>
+                                    <Text style={styles.requestSubtitle}>{serviceName}</Text>
+                                    <Text style={styles.requestDate}>
+                                      Vytvořeno: {new Date(request.created_at).toLocaleDateString('cs-CZ')}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.requestHeaderRight}>
+                                    {/* Workflow icon */}
+                                    {(() => {
+                                      const getWorkflowIcon = () => {
+                                        if (issue?.status === 'resolved' || issue?.status === 'closed') {
+                                          return 'checkmark-circle-outline';
+                                        }
+                                        if (issue?.selected_appointment_id) {
+                                          return 'construct-outline';
+                                        }
+                                        if (issue?.assigned_provider_id) {
+                                          return 'calendar-outline';
+                                        }
+                                        if (request.application_count && request.application_count > 0) {
+                                          return 'people-outline';
+                                        }
+                                        return 'document-text-outline';
+                                      };
+                                      return (
+                                        <View style={styles.workflowIconContainer}>
+                                          <Ionicons
+                                            name={getWorkflowIcon() as any}
+                                            size={20}
+                                            color={colors.primary}
+                                          />
+                                        </View>
+                                      );
+                                    })()}
+                                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                                  </View>
+                                </View>
+                                <View style={styles.requestFooter}>
+                                  <View style={styles.priorityIconContainer}>
+                                    <PriorityBadge
+                                      priority={issue?.priority || 'normal'}
+                                      showText={false}
+                                      size="small"
+                                    />
+                                  </View>
+                                  <View style={styles.applicantIconContainer}>
+                                    <Ionicons name="person-outline" size={16} color={colors.primary} />
+                                    <Text style={styles.applicantCountNumber}>
+                                      {request.application_count || 0}/3
+                                    </Text>
+                                  </View>
+                                </View>
+                              </Card>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                      {/* Pagination controls */}
+                      <View style={styles.paginationContainer}>
+                        {availableRequestsPage > 0 && (
+                          <TouchableOpacity
+                            onPress={() => setAvailableRequestsPage(availableRequestsPage - 1)}
+                            style={styles.paginationButton}
+                          >
+                            <Ionicons name="chevron-back" size={20} color={colors.primary} />
+                            <Text style={styles.paginationButtonText}>Předchozí</Text>
+                          </TouchableOpacity>
+                        )}
+                        {hasMoreAvailableRequests && (
+                          <TouchableOpacity
+                            onPress={() => setAvailableRequestsPage(availableRequestsPage + 1)}
+                            style={[styles.paginationButton, styles.paginationButtonRight]}
+                          >
+                            <Text style={styles.paginationButtonText}>Další</Text>
+                            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </>
+                  )}
+                </View>
+              }
+              renderItem={({ item }) => {
+                const openCount = openIssuesCounts[item.id] ?? 0;
+                return (
+                  <Pressable
+                    onPress={() => handleFacilityPress(item.id)}
+                    style={styles.cardWrapper}
+                  >
+                    {({ pressed }) => (
+                      <Card pressed={pressed}>
+                        <View style={styles.facilityHeader}>
+                          <Text style={styles.facilityName}>{item.name}</Text>
+                          <View style={styles.facilityHeaderRight}>
+                            {(item as any).notes && (
+                              <View style={styles.notesIconContainer}>
+                                <Ionicons name="document-text-outline" size={18} color={colors.textSecondary} />
+                              </View>
+                            )}
+                            <View style={[
+                              styles.openIssuesBadge,
+                              openCount === 0 && styles.openIssuesBadgeEmpty
+                            ]}>
+                              <Text style={[
+                                styles.openIssuesText,
+                                openCount === 0 && styles.openIssuesTextEmpty
+                              ]}>
+                                {openCount}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                        {item.description && (
+                          <Text style={styles.facilityDescription} numberOfLines={2}>
+                            {item.description}
+                          </Text>
+                        )}
+                        {item.address && (
+                          <View style={styles.addressContainer}>
+                            <Text style={styles.addressIcon}>📍</Text>
+                            <Text style={styles.address} numberOfLines={1}>
+                              {item.address}
+                            </Text>
+                          </View>
+                        )}
+                      </Card>
+                    )}
+                  </Pressable>
+                );
+              }}
+              ListEmptyComponent={
+                !hasFacilities && !hasActiveServices ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyIcon}>🏢</Text>
+                    <Text style={styles.emptyTitle}>{t('facilities.noFacilities')}</Text>
+                    <Text style={styles.emptyText}>{t('facilities.noFacilitiesHint')}</Text>
+                  </View>
+                ) : null
+              }
+            />
+
+            <MetroFAB
+              onAddPress={handleCreateFacility}
+              onLinkPress={() => navigation.navigate('JoinFacility' as never)}
+              onAddServicePress={handleAddService}
+            />
+          </>
+        )}
       </SafeAreaView>
     </ImageBackground >
   );
